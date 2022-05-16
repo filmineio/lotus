@@ -6,16 +6,12 @@ import (
 	"golang.org/x/xerrors"
 
 {{range .versions}}
-    {{if (le . 7)}}
 	    builtin{{.}} "github.com/filecoin-project/specs-actors{{import .}}actors/builtin"
-	{{else}}
-        builtin{{.}} "github.com/filecoin-project/go-state-types/builtin"
-        builtin{{.}}sa "github.com/filecoin-project/specs-actors{{import .}}actors/builtin"
-    {{end}}
 {{end}}
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/proof"
+    "github.com/filecoin-project/go-state-types/builtin"
 
 	"github.com/filecoin-project/lotus/chain/actors"
 
@@ -35,14 +31,14 @@ var (
 )
 
 const (
-	EpochDurationSeconds = builtin{{.latestVersion}}.EpochDurationSeconds
-	EpochsInDay          = builtin{{.latestVersion}}.EpochsInDay
-	SecondsInDay         = builtin{{.latestVersion}}.SecondsInDay
+	EpochDurationSeconds = builtin.EpochDurationSeconds
+	EpochsInDay          = builtin.EpochsInDay
+	SecondsInDay         = builtin.SecondsInDay
 )
 
 const (
-	MethodSend        = builtin{{.latestVersion}}.MethodSend
-	MethodConstructor = builtin{{.latestVersion}}.MethodConstructor
+	MethodSend        = builtin.MethodSend
+	MethodConstructor = builtin.MethodConstructor
 )
 
 // These are all just type aliases across actor versions. In the future, that might change
@@ -64,13 +60,8 @@ func ActorNameByCode(c cid.Cid) string {
 
 	switch {
 	    {{range .versions}}
-            {{if (le . 7)}}
-                case builtin{{.}}.IsBuiltinActor(c):
-                return builtin{{.}}.ActorNameByCode(c)
-            {{else}}
-                case builtin{{.}}sa.IsBuiltinActor(c):
-                return builtin{{.}}sa.ActorNameByCode(c)
-            {{end}}
+            case builtin{{.}}.IsBuiltinActor(c):
+            return builtin{{.}}.ActorNameByCode(c)
         {{end}}
 	default:
 		return "<unknown>"

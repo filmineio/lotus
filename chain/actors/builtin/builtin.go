@@ -19,10 +19,10 @@ import (
 
 	builtin7 "github.com/filecoin-project/specs-actors/v7/actors/builtin"
 
-	builtin8 "github.com/filecoin-project/go-state-types/builtin"
-	builtin8sa "github.com/filecoin-project/specs-actors/v8/actors/builtin"
+	builtin8 "github.com/filecoin-project/specs-actors/v8/actors/builtin"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/builtin"
 	"github.com/filecoin-project/go-state-types/proof"
 
 	"github.com/filecoin-project/lotus/chain/actors"
@@ -43,14 +43,14 @@ var (
 )
 
 const (
-	EpochDurationSeconds = builtin8.EpochDurationSeconds
-	EpochsInDay          = builtin8.EpochsInDay
-	SecondsInDay         = builtin8.SecondsInDay
+	EpochDurationSeconds = builtin.EpochDurationSeconds
+	EpochsInDay          = builtin.EpochsInDay
+	SecondsInDay         = builtin.SecondsInDay
 )
 
 const (
-	MethodSend        = builtin8.MethodSend
-	MethodConstructor = builtin8.MethodConstructor
+	MethodSend        = builtin.MethodSend
+	MethodConstructor = builtin.MethodConstructor
 )
 
 // These are all just type aliases across actor versions. In the future, that might change
@@ -93,8 +93,8 @@ func ActorNameByCode(c cid.Cid) string {
 	case builtin7.IsBuiltinActor(c):
 		return builtin7.ActorNameByCode(c)
 
-	case builtin8sa.IsBuiltinActor(c):
-		return builtin8sa.ActorNameByCode(c)
+	case builtin8.IsBuiltinActor(c):
+		return builtin8.ActorNameByCode(c)
 
 	default:
 		return "<unknown>"

@@ -1,9 +1,14 @@
 package sealer
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"reflect"
 	"runtime"
@@ -18,10 +23,13 @@ import (
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
+	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/proof"
 	"github.com/filecoin-project/go-statestore"
 
+	"github.com/filecoin-project/lotus/sealing_market"
+	marketauth "github.com/filecoin-project/lotus/sealing_market/market_auth"
 	"github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
@@ -44,6 +52,9 @@ type WorkerConfig struct {
 
 	MaxParallelChallengeReads int           // 0 = no limit
 	ChallengeReadTimeout      time.Duration // 0 = no timeout
+	UseRemotePr2              bool          // if set, worker will not do PR2 locally, but will send request to remote service
+	MarketURI                 string        // URI of the sealing market service
+	MarketConfigRepoPath      string        // Path to the market config repo
 }
 
 // used do provide custom proofs impl (mostly used in testing)
@@ -72,9 +83,12 @@ type LocalWorker struct {
 	challengeThrottle    chan struct{}
 	challengeReadTimeout time.Duration
 
-	session     uuid.UUID
-	testDisable int64
-	closing     chan struct{}
+	session        uuid.UUID
+	testDisable    int64
+	closing        chan struct{}
+	useRemotePr2   bool
+	marketUri      string
+	marketRepoPath string
 }
 
 func newLocalWorker(executor ExecutorFunc, wcfg WorkerConfig, envLookup EnvFunc, store paths.Store, local *paths.Local, sindex paths.SectorIndex, ret storiface.WorkerReturn, cst *statestore.StateStore) *LocalWorker {
@@ -139,6 +153,9 @@ func newLocalWorker(executor ExecutorFunc, wcfg WorkerConfig, envLookup EnvFunc,
 		}
 	}()
 
+	w.useRemotePr2 = wcfg.UseRemotePr2
+	w.marketUri = wcfg.MarketURI
+	w.marketRepoPath = wcfg.MarketConfigRepoPath
 	return w
 }
 
@@ -466,8 +483,153 @@ func (l *LocalWorker) ProveReplicaUpdate2(ctx context.Context, sector storiface.
 	}
 
 	return l.asyncCall(ctx, sector, ProveReplicaUpdate2, func(ctx context.Context, ci storiface.CallID) (interface{}, error) {
-		return sb.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
+
+		if !l.useRemotePr2 {
+			return sb.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
+		} else {
+			log.Infof("Creating remote PR2 request for sector ID: %v; CommD: %v; CommROld: %v; CommRNew: %v;", sector.ID.Number, sectorKey, newSealed)
+
+			commROldBytes, err := commcid.CIDToReplicaCommitmentV1(sectorKey)
+			if err != nil {
+				errWrapped := fmt.Errorf("Unable to create remote PR2 request, error while parsing commROld data: %w", err)
+				log.Infof("Error: %v\n", errWrapped)
+				return nil, errWrapped
+			}
+
+			commRNewBytes, err := commcid.CIDToReplicaCommitmentV1(newSealed)
+
+			if err != nil {
+				errWrapped := fmt.Errorf("Unable to create remote PR2 request, error while parsing commRNew data: %w", err)
+				log.Errorf("Error: %v\n", errWrapped)
+				return nil, errWrapped
+			}
+
+			commDNewBytes, err := commcid.CIDToDataCommitmentV1(newUnsealed)
+			if err != nil {
+				errWrapped := fmt.Errorf("Unable to create remote PR2 request, error while parsing comDNew data: %w", err)
+				log.Errorf("Error: %v\n", errWrapped)
+				return nil, errWrapped
+			}
+
+			input := sealing_market.Pr2Input{
+				SectorId:          uint64(sector.ID.Number),
+				StorageProviderId: uint64(sector.ID.Miner),
+				VannilaProofs:     vanillaProofs,
+				CommROld:          base64.StdEncoding.EncodeToString(commROldBytes),
+				CommRNew:          base64.StdEncoding.EncodeToString(commRNewBytes),
+				CommDNew:          base64.StdEncoding.EncodeToString(commDNewBytes),
+				RegisteredProof:   "StackedDrg2KiBV1_1",
+			}
+
+			reqBytes, err := json.Marshal(&sealing_market.AddJobRequest[*sealing_market.Pr2Input]{
+				JobType: input.JobType(),
+				Input:   &input,
+			})
+			if err != nil {
+				log.Errorf("Unable to serialize PR2 job as json; Error: %v\n", err)
+				return nil, err
+			}
+			log.Infof("ProveReplicaUpdate2 Job input: %v\n", string(reqBytes))
+			buffer := bytes.NewReader(reqBytes)
+
+			createJobURI := fmt.Sprintf("%s/job", l.marketUri)
+			req, err := http.NewRequest(http.MethodPost, createJobURI, buffer)
+			if err != nil {
+				log.Errorf("error creating new PR2 Job request: %v", err)
+				return nil, fmt.Errorf("error creating new PR2 Job request: %w", err)
+			}
+			req.Header.Add("Content-Type", "application/json")
+			marketAuthObj, err := marketauth.New(l.marketUri, l.marketRepoPath)
+			if err != nil {
+				log.Errorf("Unable to create PR2 Job: Error instantiating market repo; URL: %v; Path: %v; Error: %v", l.marketUri, l.marketRepoPath, err)
+				return nil, fmt.Errorf("error creating new PR2 Job request: unable to instantiate market repo: %w", err)
+			}
+
+			marketAuthObj.AccessToken(req)
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Errorf("Error posting a job to the marketplace: %v", err)
+				return nil, fmt.Errorf("error posting a job to the marketplace: %w", err)
+			}
+
+			switch resp.StatusCode {
+			case http.StatusOK:
+			case http.StatusConflict:
+				log.Infof("Similar job already exists for sector ID: %v; Status code: %v", sector.ID.Number, resp.StatusCode)
+			default:
+				return nil, fmt.Errorf("unable to create remote PR2 job: backend answered with HTTP status code: %d", resp.StatusCode)
+			}
+
+			pollUrl := getPr2ResultUri(l.marketUri, uint64(sector.ID.Miner), uint64(sector.ID.Number))
+			pollTime := 2 * 60 * time.Second
+
+			// create chan that will be used to signal when remote sealing is done
+			done := make(chan []byte)
+
+			go pollQueue(ctx, done, pollUrl, pollTime)
+
+			select {
+			case result := <-done:
+				log.Infof("Remote PR2 for Sector %d done", sector.ID.Number)
+				return result, nil
+			case <-ctx.Done():
+				log.Infof("Remote PR2 sector %d: context cancelled", sector.ID.Number)
+				return nil, fmt.Errorf("remote PR2 sector %d: context cancelled", sector.ID.Number)
+			}
+		}
 	})
+}
+
+func getPr2ResultUri(queue string, sp, sector uint64) string {
+	return fmt.Sprintf("%s/job/output/%d/%d/PR2", queue, sp, sector)
+}
+
+func pollQueue(ctx context.Context, done chan<- []byte, uri string, pollTime time.Duration) {
+	log.Debugf("poll queue: uri: %s: starting", uri)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Warnf("poll queue: uri: %s: context cancelled", uri)
+			return
+		case <-time.After(pollTime):
+		}
+
+		resp, err := http.Get(uri)
+		if err != nil {
+			log.Errorf("poll queue: uri: %s: error getting result from %v", uri, err)
+			continue
+		}
+
+		switch resp.StatusCode {
+		case http.StatusAccepted, http.StatusNoContent:
+			log.Infof("poll queue: uri: %s: response not yet there, will try again later", uri)
+			continue
+		case http.StatusOK:
+			res, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				log.Errorf("poll queue: uri: %s: reading response buffer: %v", uri, err)
+				continue
+			}
+
+			var out sealing_market.Output[[]byte]
+			err = json.Unmarshal(res, &out)
+			if err != nil {
+				log.Errorf("poll queue: unmarshaling output %s: %v", string(res), err)
+				continue
+			}
+			select {
+			case done <- out.Output:
+				log.Infof("poll queue: uri %s: successfully wrote response", uri)
+				return
+			case <-ctx.Done():
+				return
+			}
+		default:
+			log.Errorf("poll queue: uri %s: got an unexpected status code %d", uri, resp.StatusCode)
+			continue
+		}
+	}
 }
 
 func (l *LocalWorker) GenerateSectorKeyFromData(ctx context.Context, sector storiface.SectorRef, commD cid.Cid) (storiface.CallID, error) {

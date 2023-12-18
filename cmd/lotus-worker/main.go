@@ -34,6 +34,7 @@ import (
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/repo"
+	marketauth "github.com/filecoin-project/lotus/sealing_market/market_auth"
 	"github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
@@ -61,6 +62,7 @@ func main() {
 		waitQuietCmd,
 		resourcesCmd,
 		tasksCmd,
+		sealingMarketCmd,
 	}
 
 	app := &cli.App{
@@ -142,6 +144,20 @@ var stopCmd = &cli.Command{
 
 		return nil
 	},
+}
+
+var marketUriOptionalFlag = &cli.StringFlag{
+	Name:     marketURIFlagName,
+	Usage:    "The URL to query the market on",
+	Value:    "http://localhost:3000",
+	Required: false,
+}
+
+var useRemotePr2Flag = &cli.BoolFlag{
+	Name:     remotePr2FlagName,
+	Usage:    "If set, worker will not compute PR2 locally, but instead create a task for rempte sealers to compute it",
+	Value:    false,
+	Required: false,
 }
 
 var runCmd = &cli.Command{
@@ -281,6 +297,8 @@ var runCmd = &cli.Command{
 			Value:       true,
 			DefaultText: "inherits --addpiece",
 		},
+		marketUriOptionalFlag,
+		useRemotePr2Flag,
 	},
 	Before: func(cctx *cli.Context) error {
 		if cctx.IsSet("address") {
@@ -460,6 +478,17 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		useRemotePr2 := cctx.Bool(remotePr2FlagName)
+		if useRemotePr2 {
+			log.Infof("Using remote PR2 is set - worker will use remote sealers to compute PR2 \n")
+			log.Infof("Using \"%v\" as auth repo; \n", repoPath)
+			marketAuth, err := marketauth.New(cctx.String(marketURIFlagName), repoPath)
+			if err != nil {
+				return err
+			}
+			go marketAuth.PollRefresh(cctx.Context)
+		}
+
 		ok, err := r.Exists()
 		if err != nil {
 			return err
@@ -582,6 +611,9 @@ var runCmd = &cli.Command{
 				MaxParallelChallengeReads: cctx.Int("post-parallel-reads"),
 				ChallengeReadTimeout:      cctx.Duration("post-read-timeout"),
 				Name:                      cctx.String("name"),
+				UseRemotePr2:              cctx.Bool(remotePr2FlagName),
+				MarketURI:                 cctx.String(marketURIFlagName),
+				MarketConfigRepoPath:      cctx.String(FlagWorkerRepo),
 			}, remote, localStore, nodeApi, nodeApi, wsts),
 			LocalStore: localStore,
 			Storage:    lr,

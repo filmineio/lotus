@@ -13,6 +13,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
+	mh "github.com/multiformats/go-multihash"
 	"github.com/multiformats/go-varint"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/xerrors"
@@ -22,11 +23,24 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	builtintypes "github.com/filecoin-project/go-state-types/builtin"
 
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/lib/must"
 )
 
+var expectedHashPrefix = cid.Prefix{
+	Version:  1,
+	Codec:    cid.DagCBOR,
+	MhType:   uint64(mh.BLAKE2B_MIN + 31),
+	MhLength: 32,
+}.Bytes()
+
 var ErrInvalidAddress = errors.New("invalid Filecoin Eth address")
+
+// Research into Filecoin chain behaviour suggests that probabilistic finality
+// generally approaches the intended stability guarantee at, or near, 30 epochs.
+// Although a strictly "finalized" safe recommendation remains 900 epochs.
+// See https://github.com/filecoin-project/FIPs/blob/master/FRCs/frc-0089.md
+const SafeEpochDelay = abi.ChainEpoch(30)
 
 type EthUint64 uint64
 
@@ -67,7 +81,7 @@ func EthUint64FromHex(s string) (EthUint64, error) {
 	return EthUint64(parsedInt), nil
 }
 
-// Parse a uint64 from big-endian encoded bytes.
+// EthUint64FromBytes parses a uint64 from big-endian encoded bytes.
 func EthUint64FromBytes(b []byte) (EthUint64, error) {
 	if len(b) != 32 {
 		return 0, xerrors.Errorf("eth int must be 32 bytes long")
@@ -182,8 +196,6 @@ type EthBlock struct {
 const EthBloomSize = 2048
 
 var (
-	EmptyEthBloom  = [EthBloomSize / 8]byte{}
-	FullEthBloom   = [EthBloomSize / 8]byte{}
 	EmptyEthHash   = EthHash{}
 	EmptyUncleHash = must.One(ParseEthHash("0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")) // Keccak-256 of an RLP of an empty array
 	EmptyRootHash  = must.One(ParseEthHash("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")) // Keccak-256 hash of the RLP of null
@@ -191,24 +203,31 @@ var (
 	EmptyEthNonce  = [8]byte{0, 0, 0, 0, 0, 0, 0, 0}
 )
 
-func init() {
-	for i := range FullEthBloom {
-		FullEthBloom[i] = 0xff
-	}
+func NewEmptyEthBloom() []byte {
+	eb := [EthBloomSize / 8]byte{}
+	return eb[:]
 }
 
-func NewEthBlock(hasTransactions bool) EthBlock {
+func NewFullEthBloom() []byte {
+	fb := [EthBloomSize / 8]byte{}
+	for i := range fb {
+		fb[i] = 0xff
+	}
+	return fb[:]
+}
+
+func NewEthBlock(hasTransactions bool, tipsetLen int) EthBlock {
 	b := EthBlock{
 		Sha3Uncles:       EmptyUncleHash, // Sha3Uncles set to a hardcoded value which is used by some clients to determine if has no uncles.
 		StateRoot:        EmptyEthHash,
 		TransactionsRoot: EmptyRootHash, // TransactionsRoot set to a hardcoded value which is used by some clients to determine if has no transactions.
 		ReceiptsRoot:     EmptyEthHash,
 		Difficulty:       EmptyEthInt,
-		LogsBloom:        FullEthBloom[:],
+		LogsBloom:        NewFullEthBloom(),
 		Extradata:        []byte{},
 		MixHash:          EmptyEthHash,
 		Nonce:            EmptyEthNonce,
-		GasLimit:         EthUint64(build.BlockGasLimit), // TODO we map Ethereum blocks to Filecoin tipsets; this is inconsistent.
+		GasLimit:         EthUint64(buildconstants.BlockGasLimit * int64(tipsetLen)),
 		Uncles:           []EthHash{},
 		Transactions:     []interface{}{},
 	}
@@ -349,6 +368,13 @@ func IsEthAddress(addr address.Address) bool {
 	return namespace == builtintypes.EthereumAddressManagerActorID && len(payload) == 20 && !bytes.HasPrefix(payload, maskedIDPrefix[:])
 }
 
+func EthAddressFromActorID(id abi.ActorID) EthAddress {
+	var ethaddr EthAddress
+	ethaddr[0] = 0xff
+	binary.BigEndian.PutUint64(ethaddr[12:], uint64(id))
+	return ethaddr
+}
+
 func EthAddressFromFilecoinAddress(addr address.Address) (EthAddress, error) {
 	switch addr.Protocol() {
 	case address.ID:
@@ -356,10 +382,7 @@ func EthAddressFromFilecoinAddress(addr address.Address) (EthAddress, error) {
 		if err != nil {
 			return EthAddress{}, err
 		}
-		var ethaddr EthAddress
-		ethaddr[0] = 0xff
-		binary.BigEndian.PutUint64(ethaddr[12:], id)
-		return ethaddr, nil
+		return EthAddressFromActorID(abi.ActorID(id)), nil
 	case address.Delegated:
 		payload := addr.Payload()
 		namespace, n, err := varint.FromUvarint(payload)
@@ -468,7 +491,7 @@ func (h EthHash) String() string {
 	return "0x" + hex.EncodeToString(h[:])
 }
 
-// Should ONLY be used for blocks and Filecoin messages. Eth transactions expect a different hashing scheme.
+// ToCid should ONLY be used for blocks and Filecoin messages. Eth transactions expect a different hashing scheme.
 func (h EthHash) ToCid() cid.Cid {
 	// err is always nil
 	mh, _ := multihash.EncodeName(h[:], "blake2b-256")
@@ -514,7 +537,19 @@ func handleHexStringPrefix(s string) string {
 }
 
 func EthHashFromCid(c cid.Cid) (EthHash, error) {
-	return ParseEthHash(c.Hash().HexString()[8:])
+	hash, found := bytes.CutPrefix(c.Bytes(), expectedHashPrefix)
+	if !found {
+		return EthHash{}, fmt.Errorf("CID does not have the expected prefix")
+	}
+
+	if len(hash) != EthHashLength {
+		// this shouldn't be possible since the prefix has the length, but just in case
+		return EthHash{}, fmt.Errorf("CID hash length is not 32 bytes")
+	}
+
+	var h EthHash
+	copy(h[:], hash)
+	return h, nil
 }
 
 func ParseEthHash(s string) (EthHash, error) {
@@ -569,7 +604,7 @@ func (h EthFilterID) String() string {
 	return (EthHash)(h).String()
 }
 
-// An opaque identifier generated by the Lotus node to refer to an active subscription.
+// EthSubscriptionID is an opaque identifier generated by the Lotus node to refer to an active subscription.
 type EthSubscriptionID EthHash
 
 func (h EthSubscriptionID) MarshalJSON() ([]byte, error) {
@@ -606,12 +641,12 @@ type EthFilterSpec struct {
 	Topics EthTopicSpec `json:"topics"`
 
 	// Restricts event logs returned to those emitted from messages contained in this tipset.
-	// If BlockHash is present in in the filter criteria, then neither FromBlock nor ToBlock are allowed.
+	// If BlockHash is present in the filter criteria, then neither FromBlock nor ToBlock are allowed.
 	// Added in EIP-234
 	BlockHash *EthHash `json:"blockHash,omitempty"`
 }
 
-// EthAddressSpec represents a list of addresses.
+// EthAddressList represents a list of addresses.
 // The JSON decoding must treat a string as equivalent to an array with one value, for example
 // "0x8888f1f195afa192cfee86069858" must be decoded as [ "0x8888f1f195afa192cfee86069858" ]
 type EthAddressList []EthAddress
@@ -638,7 +673,7 @@ func (e *EthAddressList) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// TopicSpec represents a specification for matching by topic. An empty spec means all topics
+// EthTopicSpec represents a specification for matching by topic. An empty spec means all topics
 // will be matched. Otherwise topics are matched conjunctively in the first dimension of the
 // slice and disjunctively in the second dimension. Topics are matched in order.
 // An event log with topics [A, B] will be matched by the following topic specs:
@@ -678,7 +713,7 @@ func (e *EthHashList) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// FilterResult represents the response from executing a filter: a list of block hashes, a list of transaction hashes
+// EthFilterResult represents the response from executing a filter: a list of block hashes, a list of transaction hashes
 // or a list of logs
 // This is a union type. Only one field will be populated.
 // The JSON encoding must produce an array of the populated field.
@@ -811,6 +846,44 @@ func GetContractEthAddressFromCode(sender EthAddress, salt [32]byte, initcode []
 	return ethAddr, nil
 }
 
+type FilecoinAddressToEthAddressParams struct {
+	FilecoinAddress address.Address
+	BlkParam        *string
+}
+
+func (e *FilecoinAddressToEthAddressParams) UnmarshalJSON(b []byte) error {
+	var params []json.RawMessage
+	err := json.Unmarshal(b, &params)
+	if err != nil {
+		return err
+	}
+
+	switch len(params) {
+	case 2:
+		err = json.Unmarshal(params[1], &e.BlkParam)
+		if err != nil {
+			return err
+		}
+		fallthrough
+	case 1:
+		err = json.Unmarshal(params[0], &e.FilecoinAddress)
+		if err != nil {
+			return err
+		}
+	default:
+		return xerrors.Errorf("expected 1 or 2 params, got %d", len(params))
+	}
+
+	return nil
+}
+
+func (e *FilecoinAddressToEthAddressParams) MarshalJSON() ([]byte, error) {
+	if e.BlkParam != nil {
+		return json.Marshal([]interface{}{e.FilecoinAddress, e.BlkParam})
+	}
+	return json.Marshal([]interface{}{e.FilecoinAddress})
+}
+
 // EthEstimateGasParams handles raw jsonrpc params for eth_estimateGas
 type EthEstimateGasParams struct {
 	Tx       EthCall
@@ -923,7 +996,7 @@ func NewEthBlockNumberOrHashFromNumber(number EthUint64) EthBlockNumberOrHash {
 
 func NewEthBlockNumberOrHashFromHexString(str string) (EthBlockNumberOrHash, error) {
 	// check if block param is a number (decimal or hex)
-	var num EthUint64 = 0
+	var num EthUint64
 	err := num.UnmarshalJSON([]byte(str))
 	if err != nil {
 		return NewEthBlockNumberOrHashFromNumber(0), err
@@ -972,6 +1045,16 @@ func (e *EthBlockNumberOrHash) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 
+	// check if input is a block hash (66 characters long)
+	if len(str) == 66 && strings.HasPrefix(str, "0x") {
+		hash, err := ParseEthHash(str)
+		if err != nil {
+			return err
+		}
+		e.BlockHash = &hash
+		return nil
+	}
+
 	// check if block param is a number (decimal or hex)
 	var num EthUint64
 	if err := num.UnmarshalJSON(b); err == nil {
@@ -983,22 +1066,12 @@ func (e *EthBlockNumberOrHash) UnmarshalJSON(b []byte) error {
 }
 
 type EthTrace struct {
-	Action       EthTraceAction `json:"action"`
-	Result       EthTraceResult `json:"result"`
-	Subtraces    int            `json:"subtraces"`
-	TraceAddress []int          `json:"traceAddress"`
-	Type         string         `json:"Type"`
-
-	Parent *EthTrace `json:"-"`
-
-	// if a subtrace makes a call to GetBytecode, we store a pointer to that subtrace here
-	// which we then lookup when checking for delegatecall (InvokeContractDelegate)
-	LastByteCode *EthTrace `json:"-"`
-}
-
-func (t *EthTrace) SetCallType(callType string) {
-	t.Action.CallType = callType
-	t.Type = callType
+	Type         string `json:"type"`
+	Error        string `json:"error,omitempty"`
+	Subtraces    int    `json:"subtraces"`
+	TraceAddress []int  `json:"traceAddress"`
+	Action       any    `json:"action"`
+	Result       any    `json:"result"`
 }
 
 type EthTraceBlock struct {
@@ -1017,21 +1090,78 @@ type EthTraceReplayBlockTransaction struct {
 	VmTrace         *string     `json:"vmTrace"`
 }
 
-type EthTraceAction struct {
+type EthTraceTransaction struct {
+	*EthTrace
+	BlockHash           EthHash `json:"blockHash"`
+	BlockNumber         int64   `json:"blockNumber"`
+	TransactionHash     EthHash `json:"transactionHash"`
+	TransactionPosition int     `json:"transactionPosition"`
+}
+
+type EthTraceFilterResult struct {
+	*EthTrace
+	BlockHash           EthHash `json:"blockHash"`
+	BlockNumber         int64   `json:"blockNumber"`
+	TransactionHash     EthHash `json:"transactionHash"`
+	TransactionPosition int     `json:"transactionPosition"`
+}
+
+// EthTraceFilterCriteria defines the criteria for filtering traces.
+type EthTraceFilterCriteria struct {
+	// Interpreted as an epoch (in hex) or one of "latest" for last mined block, "pending" for not yet committed messages.
+	// Optional, default: "latest".
+	// Note: "earliest" is not a permitted value.
+	FromBlock *string `json:"fromBlock,omitempty"`
+
+	// Interpreted as an epoch (in hex) or one of "latest" for last mined block, "pending" for not yet committed messages.
+	// Optional, default: "latest".
+	// Note: "earliest" is not a permitted value.
+	ToBlock *string `json:"toBlock,omitempty"`
+
+	// Actor address or a list of addresses from which transactions that generate traces should originate.
+	// Optional, default: nil.
+	// The JSON decoding must treat a string as equivalent to an array with one value, for example
+	// "0x8888f1f195afa192cfee86069858" must be decoded as [ "0x8888f1f195afa192cfee86069858" ]
+	FromAddress EthAddressList `json:"fromAddress,omitempty"`
+
+	// Actor address or a list of addresses to which transactions that generate traces are sent.
+	// Optional, default: nil.
+	// The JSON decoding must treat a string as equivalent to an array with one value, for example
+	// "0x8888f1f195afa192cfee86069858" must be decoded as [ "0x8888f1f195afa192cfee86069858" ]
+	ToAddress EthAddressList `json:"toAddress,omitempty"`
+
+	// After specifies the offset for pagination of trace results. The number of traces to skip before returning results.
+	// Optional, default: nil.
+	After *EthUint64 `json:"after,omitempty"`
+
+	// Limits the number of traces returned.
+	// Optional, default: all traces.
+	Count *EthUint64 `json:"count,omitempty"`
+}
+
+type EthCallTraceAction struct {
 	CallType string     `json:"callType"`
 	From     EthAddress `json:"from"`
 	To       EthAddress `json:"to"`
 	Gas      EthUint64  `json:"gas"`
-	Input    EthBytes   `json:"input"`
 	Value    EthBigInt  `json:"value"`
-
-	FilecoinMethod  abi.MethodNum   `json:"-"`
-	FilecoinCodeCid cid.Cid         `json:"-"`
-	FilecoinFrom    address.Address `json:"-"`
-	FilecoinTo      address.Address `json:"-"`
+	Input    EthBytes   `json:"input"`
 }
 
-type EthTraceResult struct {
+type EthCallTraceResult struct {
 	GasUsed EthUint64 `json:"gasUsed"`
 	Output  EthBytes  `json:"output"`
+}
+
+type EthCreateTraceAction struct {
+	From  EthAddress `json:"from"`
+	Gas   EthUint64  `json:"gas"`
+	Value EthBigInt  `json:"value"`
+	Init  EthBytes   `json:"init"`
+}
+
+type EthCreateTraceResult struct {
+	Address *EthAddress `json:"address,omitempty"`
+	GasUsed EthUint64   `json:"gasUsed"`
+	Code    EthBytes    `json:"code"`
 }

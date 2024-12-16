@@ -71,6 +71,68 @@ your node if metadata log is disabled`,
 			Comment: ``,
 		},
 	},
+	"ChainIndexerConfig": {
+		{
+			Name: "EnableIndexer",
+			Type: "bool",
+
+			Comment: `EnableIndexer controls whether the chain indexer is active.
+The chain indexer is responsible for indexing tipsets, messages, and events from the chain state.
+It is a crucial component for optimizing Lotus RPC response times.
+
+Default: false (indexer is disabled)
+
+Setting this to true will enable the indexer, which will significantly improve RPC performance.
+It is strongly recommended to keep this set to true if you are an RPC provider.
+
+If EnableEthRPC or EnableActorEventsAPI are set to true, the ChainIndexer must be enabled using
+this option to avoid errors at startup.`,
+		},
+		{
+			Name: "GCRetentionEpochs",
+			Type: "int64",
+
+			Comment: `GCRetentionEpochs specifies the number of epochs for which data is retained in the Indexer.
+The garbage collection (GC) process removes data older than this retention period.
+Setting this to 0 disables GC, preserving all historical data indefinitely.
+
+If set, the minimum value must be greater than builtin.EpochsInDay (i.e. "2880" epochs for mainnet).
+This ensures a reasonable retention period for the indexed data.
+
+Default: 0 (GC disabled)`,
+		},
+		{
+			Name: "ReconcileEmptyIndex",
+			Type: "bool",
+
+			Comment: `ReconcileEmptyIndex determines whether to reconcile the index with the chain state
+during startup when the index is empty.
+
+When set to true:
+- On startup, if the index is empty, the indexer will index the available
+chain state on the node albeit within the MaxReconcileTipsets limit.
+
+When set to false:
+- The indexer will not automatically re-index the chain state on startup if the index is empty.
+
+Default: false
+
+Note: The number of tipsets reconciled (i.e. indexed) during this process can be
+controlled using the MaxReconcileTipsets option.`,
+		},
+		{
+			Name: "MaxReconcileTipsets",
+			Type: "uint64",
+
+			Comment: `MaxReconcileTipsets limits the number of tipsets to reconcile with the chain during startup.
+It represents the maximum number of tipsets to index from the chain state that are absent in the index.
+
+Default: 3 * epochsPerDay (approximately 3 days of chain history)
+
+Note: Setting this value too low may result in incomplete indexing, while setting it too high
+may increase startup time.`,
+		},
+	},
 	"Chainstore": {
 		{
 			Name: "EnableSplitstore",
@@ -83,54 +145,6 @@ your node if metadata log is disabled`,
 			Type: "Splitstore",
 
 			Comment: ``,
-		},
-	},
-	"Client": {
-		{
-			Name: "UseIpfs",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "IpfsOnlineMode",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "IpfsMAddr",
-			Type: "string",
-
-			Comment: ``,
-		},
-		{
-			Name: "IpfsUseForRetrieval",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "SimultaneousTransfersForStorage",
-			Type: "uint64",
-
-			Comment: `The maximum number of simultaneous data transfers between the client
-and storage providers for storage deals`,
-		},
-		{
-			Name: "SimultaneousTransfersForRetrieval",
-			Type: "uint64",
-
-			Comment: `The maximum number of simultaneous data transfers between the client
-and storage providers for retrieval deals`,
-		},
-		{
-			Name: "OffChainRetrieval",
-			Type: "bool",
-
-			Comment: `Require that retrievals perform no on-chain operations. Paid retrievals
-without existing payment channels with available funds will fail instead
-of automatically performing on-chain operations.`,
 		},
 	},
 	"Common": {
@@ -152,240 +166,41 @@ of automatically performing on-chain operations.`,
 
 			Comment: ``,
 		},
-		{
-			Name: "Libp2p",
-			Type: "Libp2p",
-
-			Comment: ``,
-		},
-		{
-			Name: "Pubsub",
-			Type: "Pubsub",
-
-			Comment: ``,
-		},
-	},
-	"DAGStoreConfig": {
-		{
-			Name: "RootDir",
-			Type: "string",
-
-			Comment: `Path to the dagstore root directory. This directory contains three
-subdirectories, which can be symlinked to alternative locations if
-need be:
-- ./transients: caches unsealed deals that have been fetched from the
-storage subsystem for serving retrievals.
-- ./indices: stores shard indices.
-- ./datastore: holds the KV store tracking the state of every shard
-known to the DAG store.
-Default value: <LOTUS_MARKETS_PATH>/dagstore (split deployment) or
-<LOTUS_MINER_PATH>/dagstore (monolith deployment)`,
-		},
-		{
-			Name: "MaxConcurrentIndex",
-			Type: "int",
-
-			Comment: `The maximum amount of indexing jobs that can run simultaneously.
-0 means unlimited.
-Default value: 5.`,
-		},
-		{
-			Name: "MaxConcurrentReadyFetches",
-			Type: "int",
-
-			Comment: `The maximum amount of unsealed deals that can be fetched simultaneously
-from the storage subsystem. 0 means unlimited.
-Default value: 0 (unlimited).`,
-		},
-		{
-			Name: "MaxConcurrentUnseals",
-			Type: "int",
-
-			Comment: `The maximum amount of unseals that can be processed simultaneously
-from the storage subsystem. 0 means unlimited.
-Default value: 0 (unlimited).`,
-		},
-		{
-			Name: "MaxConcurrencyStorageCalls",
-			Type: "int",
-
-			Comment: `The maximum number of simultaneous inflight API calls to the storage
-subsystem.
-Default value: 100.`,
-		},
-		{
-			Name: "GCInterval",
-			Type: "Duration",
-
-			Comment: `The time between calls to periodic dagstore GC, in time.Duration string
-representation, e.g. 1m, 5m, 1h.
-Default value: 1 minute.`,
-		},
 	},
 	"DealmakingConfig": {
-		{
-			Name: "ConsiderOnlineStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept online deals`,
-		},
-		{
-			Name: "ConsiderOfflineStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept offline deals`,
-		},
-		{
-			Name: "ConsiderOnlineRetrievalDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept retrieval deals`,
-		},
-		{
-			Name: "ConsiderOfflineRetrievalDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept offline retrieval deals`,
-		},
-		{
-			Name: "ConsiderVerifiedStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept verified deals`,
-		},
-		{
-			Name: "ConsiderUnverifiedStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept unverified deals`,
-		},
-		{
-			Name: "PieceCidBlocklist",
-			Type: "[]cid.Cid",
-
-			Comment: `A list of Data CIDs to reject when making deals`,
-		},
-		{
-			Name: "ExpectedSealDuration",
-			Type: "Duration",
-
-			Comment: `Maximum expected amount of time getting the deal into a sealed sector will take
-This includes the time the deal will need to get transferred and published
-before being assigned to a sector`,
-		},
-		{
-			Name: "MaxDealStartDelay",
-			Type: "Duration",
-
-			Comment: `Maximum amount of time proposed deal StartEpoch can be in future`,
-		},
-		{
-			Name: "PublishMsgPeriod",
-			Type: "Duration",
-
-			Comment: `When a deal is ready to publish, the amount of time to wait for more
-deals to be ready to publish before publishing them all as a batch`,
-		},
-		{
-			Name: "MaxDealsPerPublishMsg",
-			Type: "uint64",
-
-			Comment: `The maximum number of deals to include in a single PublishStorageDeals
-message`,
-		},
-		{
-			Name: "MaxProviderCollateralMultiplier",
-			Type: "uint64",
-
-			Comment: `The maximum collateral that the provider will put up against a deal,
-as a multiplier of the minimum collateral bound`,
-		},
-		{
-			Name: "MaxStagingDealsBytes",
-			Type: "int64",
-
-			Comment: `The maximum allowed disk usage size in bytes of staging deals not yet
-passed to the sealing node by the markets service. 0 is unlimited.`,
-		},
-		{
-			Name: "SimultaneousTransfersForStorage",
-			Type: "uint64",
-
-			Comment: `The maximum number of parallel online data transfers for storage deals`,
-		},
-		{
-			Name: "SimultaneousTransfersForStoragePerClient",
-			Type: "uint64",
-
-			Comment: `The maximum number of simultaneous data transfers from any single client
-for storage deals.
-Unset by default (0), and values higher than SimultaneousTransfersForStorage
-will have no effect; i.e. the total number of simultaneous data transfers
-across all storage clients is bound by SimultaneousTransfersForStorage
-regardless of this number.`,
-		},
-		{
-			Name: "SimultaneousTransfersForRetrieval",
-			Type: "uint64",
-
-			Comment: `The maximum number of parallel online data transfers for retrieval deals`,
-		},
 		{
 			Name: "StartEpochSealingBuffer",
 			Type: "uint64",
 
 			Comment: `Minimum start epoch buffer to give time for sealing of sector with deal.`,
 		},
-		{
-			Name: "Filter",
-			Type: "string",
-
-			Comment: `A command used for fine-grained evaluation of storage deals
-see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
-		},
-		{
-			Name: "RetrievalFilter",
-			Type: "string",
-
-			Comment: `A command used for fine-grained evaluation of retrieval deals
-see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
-		},
-		{
-			Name: "RetrievalPricing",
-			Type: "*RetrievalPricing",
-
-			Comment: ``,
-		},
 	},
-	"Events": {
+	"EventsConfig": {
 		{
-			Name: "DisableRealTimeFilterAPI",
+			Name: "EnableActorEventsAPI",
 			Type: "bool",
 
-			Comment: `EnableEthRPC enables APIs that
-DisableRealTimeFilterAPI will disable the RealTimeFilterAPI that can create and query filters for actor events as they are emitted.
-The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.`,
-		},
-		{
-			Name: "DisableHistoricFilterAPI",
-			Type: "bool",
-
-			Comment: `DisableHistoricFilterAPI will disable the HistoricFilterAPI that can create and query filters for actor events
-that occurred in the past. HistoricFilterAPI maintains a queryable index of events.
-The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.`,
+			Comment: `EnableActorEventsAPI enables the Actor events API that enables clients to consume events
+emitted by (smart contracts + built-in Actors).
+Note: Setting this to true will also require that ChainIndexer is enabled, otherwise it will cause an error at startup.
+Set EnableIndexer in the ChainIndexer section of the config to true to enable the ChainIndexer.`,
 		},
 		{
 			Name: "FilterTTL",
 			Type: "Duration",
 
 			Comment: `FilterTTL specifies the time to live for actor event filters. Filters that haven't been accessed longer than
-this time become eligible for automatic deletion.`,
+this time become eligible for automatic deletion. Filters consume resources, so if they are unused they
+should not be retained.`,
 		},
 		{
 			Name: "MaxFilters",
 			Type: "int",
 
-			Comment: `MaxFilters specifies the maximum number of filters that may exist at any one time.`,
+			Comment: `MaxFilters specifies the maximum number of filters that may exist at any one time.
+Multi-tenant environments may want to increase this value to serve a larger number of clients. If using
+lotus-gateway, this global limit can be coupled with --eth-max-filters-per-conn which limits the number
+of filters per connection.`,
 		},
 		{
 			Name: "MaxFilterResults",
@@ -399,15 +214,6 @@ this time become eligible for automatic deletion.`,
 
 			Comment: `MaxFilterHeightRange specifies the maximum range of heights that can be used in a filter (to avoid querying
 the entire chain)`,
-		},
-		{
-			Name: "DatabasePath",
-			Type: "string",
-
-			Comment: `DatabasePath is the full path to a sqlite database that will be used to index actor events to
-support the historic filter APIs. If the database does not exist it will be created. The directory containing
-the database must already exist and be writeable. If a relative path is provided here, sqlite treats it as
-relative to the CWD (current working directory).`,
 		},
 	},
 	"FaultReporterConfig": {
@@ -452,27 +258,37 @@ rewards. This address should have adequate funds to cover gas fees.`,
 			Name: "EnableEthRPC",
 			Type: "bool",
 
-			Comment: `EnableEthRPC enables eth_ rpc, and enables storing a mapping of eth transaction hashes to filecoin message Cids.
-This will also enable the RealTimeFilterAPI and HistoricFilterAPI by default, but they can be disabled by config options above.`,
+			Comment: `EnableEthRPC enables eth_ RPC methods.
+Note: Setting this to true will also require that ChainIndexer is enabled, otherwise it will cause an error at startup.
+Set EnableIndexer in the ChainIndexer section of the config to true to enable the ChainIndexer.`,
 		},
 		{
-			Name: "EthTxHashMappingLifetimeDays",
+			Name: "EthTraceFilterMaxResults",
+			Type: "uint64",
+
+			Comment: `EthTraceFilterMaxResults sets the maximum results returned per request by trace_filter`,
+		},
+		{
+			Name: "EthBlkCacheSize",
 			Type: "int",
 
-			Comment: `EthTxHashMappingLifetimeDays the transaction hash lookup database will delete mappings that have been stored for more than x days
-Set to 0 to keep all mappings`,
-		},
-		{
-			Name: "Events",
-			Type: "Events",
-
-			Comment: ``,
+			Comment: `EthBlkCacheSize specifies the size of the cache used for caching Ethereum blocks.
+This cache enhances the performance of the eth_getBlockByHash RPC call by minimizing the need to access chain state for
+recently requested blocks that are already cached.
+The default size of the cache is 500 blocks.
+Note: Setting this value to 0 disables the cache.`,
 		},
 	},
 	"FullNode": {
 		{
-			Name: "Client",
-			Type: "Client",
+			Name: "Libp2p",
+			Type: "Libp2p",
+
+			Comment: ``,
+		},
+		{
+			Name: "Pubsub",
+			Type: "Pubsub",
 
 			Comment: ``,
 		},
@@ -501,8 +317,14 @@ Set to 0 to keep all mappings`,
 			Comment: ``,
 		},
 		{
-			Name: "Index",
-			Type: "IndexConfig",
+			Name: "Events",
+			Type: "EventsConfig",
+
+			Comment: ``,
+		},
+		{
+			Name: "ChainIndexer",
+			Type: "ChainIndexerConfig",
 
 			Comment: ``,
 		},
@@ -544,60 +366,6 @@ in a cluster. Only 1 is required`,
 			Type: "string",
 
 			Comment: `The port to find Yugabyte. Blank for default.`,
-		},
-	},
-	"IndexConfig": {
-		{
-			Name: "EnableMsgIndex",
-			Type: "bool",
-
-			Comment: `EXPERIMENTAL FEATURE. USE WITH CAUTION
-EnableMsgIndex enables indexing of messages on chain.`,
-		},
-	},
-	"IndexProviderConfig": {
-		{
-			Name: "Enable",
-			Type: "bool",
-
-			Comment: `Enable set whether to enable indexing announcement to the network and expose endpoints that
-allow indexer nodes to process announcements. Enabled by default.`,
-		},
-		{
-			Name: "EntriesCacheCapacity",
-			Type: "int",
-
-			Comment: `EntriesCacheCapacity sets the maximum capacity to use for caching the indexing advertisement
-entries. Defaults to 1024 if not specified. The cache is evicted using LRU policy. The
-maximum storage used by the cache is a factor of EntriesCacheCapacity, EntriesChunkSize and
-the length of multihashes being advertised. For example, advertising 128-bit long multihashes
-with the default EntriesCacheCapacity, and EntriesChunkSize means the cache size can grow to
-256MiB when full.`,
-		},
-		{
-			Name: "EntriesChunkSize",
-			Type: "int",
-
-			Comment: `EntriesChunkSize sets the maximum number of multihashes to include in a single entries chunk.
-Defaults to 16384 if not specified. Note that chunks are chained together for indexing
-advertisements that include more multihashes than the configured EntriesChunkSize.`,
-		},
-		{
-			Name: "TopicName",
-			Type: "string",
-
-			Comment: `TopicName sets the topic name on which the changes to the advertised content are announced.
-If not explicitly specified, the topic name is automatically inferred from the network name
-in following format: '/indexer/ingest/<network-name>'
-Defaults to empty, which implies the topic name is inferred from network name.`,
-		},
-		{
-			Name: "PurgeCacheOnStart",
-			Type: "bool",
-
-			Comment: `PurgeCacheOnStart sets whether to clear any cached entries chunks when the provider engine
-starts. By default, the cache is rehydrated from previously cached entries stored in
-datastore if any is present.`,
 		},
 	},
 	"JournalConfig": {
@@ -681,136 +449,6 @@ closed by the connection manager.`,
 			Type: "map[string]string",
 
 			Comment: `SubsystemLevels specify per-subsystem log levels`,
-		},
-	},
-	"LotusProviderAddresses": {
-		{
-			Name: "PreCommitControl",
-			Type: "[]string",
-
-			Comment: `Addresses to send PreCommit messages from`,
-		},
-		{
-			Name: "CommitControl",
-			Type: "[]string",
-
-			Comment: `Addresses to send Commit messages from`,
-		},
-		{
-			Name: "TerminateControl",
-			Type: "[]string",
-
-			Comment: ``,
-		},
-		{
-			Name: "DisableOwnerFallback",
-			Type: "bool",
-
-			Comment: `DisableOwnerFallback disables usage of the owner address for messages
-sent automatically`,
-		},
-		{
-			Name: "DisableWorkerFallback",
-			Type: "bool",
-
-			Comment: `DisableWorkerFallback disables usage of the worker address for messages
-sent automatically, if control addresses are configured.
-A control address that doesn't have enough funds will still be chosen
-over the worker address if this flag is set.`,
-		},
-		{
-			Name: "MinerAddresses",
-			Type: "[]string",
-
-			Comment: `MinerAddresses are the addresses of the miner actors to use for sending messages`,
-		},
-	},
-	"LotusProviderConfig": {
-		{
-			Name: "Subsystems",
-			Type: "ProviderSubsystemsConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "Fees",
-			Type: "LotusProviderFees",
-
-			Comment: ``,
-		},
-		{
-			Name: "Addresses",
-			Type: "LotusProviderAddresses",
-
-			Comment: ``,
-		},
-		{
-			Name: "Proving",
-			Type: "ProvingConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "Journal",
-			Type: "JournalConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "Apis",
-			Type: "ApisConfig",
-
-			Comment: ``,
-		},
-	},
-	"LotusProviderFees": {
-		{
-			Name: "DefaultMaxFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxPreCommitGasFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxCommitGasFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxPreCommitBatchGasFee",
-			Type: "BatchFeeConfig",
-
-			Comment: `maxBatchFee = maxBase + maxPerSector * nSectors`,
-		},
-		{
-			Name: "MaxCommitBatchGasFee",
-			Type: "BatchFeeConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxTerminateGasFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxWindowPoStGasFee",
-			Type: "types.FIL",
-
-			Comment: `WindowPoSt is a high-value operation, so the default fee should be high.`,
-		},
-		{
-			Name: "MaxPublishDealsFee",
-			Type: "types.FIL",
-
-			Comment: ``,
 		},
 	},
 	"MinerAddressConfig": {
@@ -931,12 +569,6 @@ over the worker address if this flag is set.`,
 			Comment: ``,
 		},
 		{
-			Name: "EnableMarkets",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
 			Name: "EnableSectorIndexDB",
 			Type: "bool",
 
@@ -980,44 +612,6 @@ blocks. This should only be set when there's an external process mining
 blocks on behalf of the miner.
 When disabled and no external block producers are configured, all potential
 block rewards will be missed!`,
-		},
-	},
-	"ProviderSubsystemsConfig": {
-		{
-			Name: "EnableWindowPost",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "WindowPostMaxTasks",
-			Type: "int",
-
-			Comment: ``,
-		},
-		{
-			Name: "EnableWinningPost",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "WinningPostMaxTasks",
-			Type: "int",
-
-			Comment: ``,
-		},
-		{
-			Name: "EnableWebGui",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "GuiAddress",
-			Type: "string",
-
-			Comment: `The address that should listen for Web GUI requests.`,
 		},
 	},
 	"ProvingConfig": {
@@ -1202,46 +796,6 @@ This property is used only if ElasticSearchTracer propery is set.`,
 			Type: "string",
 
 			Comment: `Auth token that will be passed with logs to elasticsearch - used for weighted peers score.`,
-		},
-	},
-	"RetrievalPricing": {
-		{
-			Name: "Strategy",
-			Type: "string",
-
-			Comment: ``,
-		},
-		{
-			Name: "Default",
-			Type: "*RetrievalPricingDefault",
-
-			Comment: ``,
-		},
-		{
-			Name: "External",
-			Type: "*RetrievalPricingExternal",
-
-			Comment: ``,
-		},
-	},
-	"RetrievalPricingDefault": {
-		{
-			Name: "VerifiedDealsFreeTransfer",
-			Type: "bool",
-
-			Comment: `VerifiedDealsFreeTransfer configures zero fees for data transfer for a retrieval deal
-of a payloadCid that belongs to a verified storage deal.
-This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "default".
-default value is true`,
-		},
-	},
-	"RetrievalPricingExternal": {
-		{
-			Name: "Path",
-			Type: "string",
-
-			Comment: `Path of the external script that will be run to price a retrieval deal.
-This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "external".`,
 		},
 	},
 	"SealerConfig": {
@@ -1556,6 +1110,30 @@ Submitting a smaller number of prove commits per epoch would reduce the possibil
 
 			Comment: `UseSyntheticPoRep, when set to true, will reduce the amount of cache data held on disk after the completion of PreCommit 2 to 11GiB.`,
 		},
+		{
+			Name: "RequireActivationSuccess",
+			Type: "bool",
+
+			Comment: `Whether to abort if any sector activation in a batch fails (newly sealed sectors, only with ProveCommitSectors3).`,
+		},
+		{
+			Name: "RequireActivationSuccessUpdate",
+			Type: "bool",
+
+			Comment: `Whether to abort if any piece activation notification returns a non-zero exit code (newly sealed sectors, only with ProveCommitSectors3).`,
+		},
+		{
+			Name: "RequireNotificationSuccess",
+			Type: "bool",
+
+			Comment: `Whether to abort if any sector activation in a batch fails (updating sectors, only with ProveReplicaUpdates3).`,
+		},
+		{
+			Name: "RequireNotificationSuccessUpdate",
+			Type: "bool",
+
+			Comment: `Whether to abort if any piece activation notification returns a non-zero exit code (updating sectors, only with ProveReplicaUpdates3).`,
+		},
 	},
 	"Splitstore": {
 		{
@@ -1638,12 +1216,6 @@ HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer`,
 			Comment: ``,
 		},
 		{
-			Name: "IndexProvider",
-			Type: "IndexProviderConfig",
-
-			Comment: ``,
-		},
-		{
 			Name: "Proving",
 			Type: "ProvingConfig",
 
@@ -1670,12 +1242,6 @@ HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer`,
 		{
 			Name: "Addresses",
 			Type: "MinerAddressConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "DAGStore",
-			Type: "DAGStoreConfig",
 
 			Comment: ``,
 		},

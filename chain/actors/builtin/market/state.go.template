@@ -30,7 +30,7 @@ import (
 	markettypes "github.com/filecoin-project/go-state-types/builtin/v9/market"
 	adt{{.v}} "github.com/filecoin-project/go-state-types/builtin{{.import}}util/adt"
 {{end}}
-{{if (ge .v 9)}}
+{{if (ge .v 3)}}
 	"github.com/filecoin-project/go-state-types/builtin"
 {{end}}
 )
@@ -128,6 +128,14 @@ func (s *state{{.v}}) Proposals() (DealProposals, error) {
 	return &dealProposals{{.v}}{proposalArray}, nil
 }
 
+func (s *state{{.v}}) PendingProposals() (PendingProposals, error) {
+	proposalCidSet, err := adt{{.v}}.AsSet(s.store, s.State.PendingProposals{{if (ge .v 3)}}, builtin.DefaultHamtBitwidth{{end}})
+	if err != nil {
+		return nil, err
+	}
+	return &pendingProposals{{.v}}{proposalCidSet}, nil
+}
+
 func (s *state{{.v}}) EscrowTable() (BalanceTable, error) {
 	bt, err := adt{{.v}}.AsBalanceTable(s.store, s.State.EscrowTable)
 	if err != nil {
@@ -146,9 +154,9 @@ func (s *state{{.v}}) LockedTable() (BalanceTable, error) {
 
 func (s *state{{.v}}) VerifyDealsForActivation(
 	minerAddr address.Address, deals []abi.DealID, currEpoch, sectorExpiry abi.ChainEpoch,
-) (weight, verifiedWeight abi.DealWeight, err error) {
-	w, vw{{if (ge .v 2)}}, _{{end}}, err := market{{.v}}.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
-	return w, vw, err
+) (verifiedWeight abi.DealWeight, err error) {
+	_, vw{{if (ge .v 2)}}, _{{end}}, err := market{{.v}}.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
+	return vw, err
 }
 
 func (s *state{{.v}}) NextID() (abi.DealID, error) {
@@ -175,7 +183,7 @@ type dealStates{{.v}} struct {
 	adt.Array
 }
 
-func (s *dealStates{{.v}}) Get(dealID abi.DealID) (*DealState, bool, error) {
+func (s *dealStates{{.v}}) Get(dealID abi.DealID) (DealState, bool, error) {
 	var deal{{.v}} market{{.v}}.DealState
 	found, err := s.Array.Get(uint64(dealID), &deal{{.v}})
 	if err != nil {
@@ -185,7 +193,7 @@ func (s *dealStates{{.v}}) Get(dealID abi.DealID) (*DealState, bool, error) {
 		return nil, false, nil
 	}
 	deal := fromV{{.v}}DealState(deal{{.v}})
-	return &deal, true, nil
+	return deal, true, nil
 }
 
 func (s *dealStates{{.v}}) ForEach(cb func(dealID abi.DealID, ds DealState) error) error {
@@ -195,31 +203,65 @@ func (s *dealStates{{.v}}) ForEach(cb func(dealID abi.DealID, ds DealState) erro
 	})
 }
 
-func (s *dealStates{{.v}}) decode(val *cbg.Deferred) (*DealState, error) {
+func (s *dealStates{{.v}}) decode(val *cbg.Deferred) (DealState, error) {
 	var ds{{.v}} market{{.v}}.DealState
 	if err := ds{{.v}}.UnmarshalCBOR(bytes.NewReader(val.Raw)); err != nil {
 		return nil, err
 	}
 	ds := fromV{{.v}}DealState(ds{{.v}})
-	return &ds, nil
+	return ds, nil
 }
 
 func (s *dealStates{{.v}}) array() adt.Array {
 	return s.Array
 }
 
-func fromV{{.v}}DealState(v{{.v}} market{{.v}}.DealState) DealState {
-    ret := DealState{
-        SectorStartEpoch: v{{.v}}.SectorStartEpoch,
-        LastUpdatedEpoch: v{{.v}}.LastUpdatedEpoch,
-        SlashEpoch: v{{.v}}.SlashEpoch,
-        VerifiedClaim: 0,
-    }
-    {{if (ge .v 9)}}
-        ret.VerifiedClaim = verifregtypes.AllocationId(v{{.v}}.VerifiedClaim)
-    {{end}}
+type dealStateV{{.v}} struct {
+	ds{{.v}} market{{.v}}.DealState
+}
 
-    return ret
+func (d dealStateV{{.v}}) SectorNumber() abi.SectorNumber {
+{{if (le .v 12)}}
+	return 0
+{{else}}
+	return d.ds{{.v}}.SectorNumber
+{{end}}
+}
+
+func (d dealStateV{{.v}}) SectorStartEpoch() abi.ChainEpoch {
+	return d.ds{{.v}}.SectorStartEpoch
+}
+
+func (d dealStateV{{.v}}) LastUpdatedEpoch() abi.ChainEpoch {
+	return d.ds{{.v}}.LastUpdatedEpoch
+}
+
+func (d dealStateV{{.v}}) SlashEpoch() abi.ChainEpoch {
+	return d.ds{{.v}}.SlashEpoch
+}
+
+func (d dealStateV{{.v}}) Equals(other DealState) bool {
+	if ov{{.v}}, ok := other.(dealStateV{{.v}}); ok {
+		return d.ds{{.v}} == ov{{.v}}.ds{{.v}}
+	}
+
+	if d.SectorStartEpoch() != other.SectorStartEpoch() {
+		return false
+	}
+	if d.LastUpdatedEpoch() != other.LastUpdatedEpoch() {
+		return false
+	}
+	if d.SlashEpoch() != other.SlashEpoch() {
+		return false
+	}
+
+	return true
+}
+
+var _ DealState = (*dealStateV{{.v}})(nil)
+
+func fromV{{.v}}DealState(v{{.v}} market{{.v}}.DealState) DealState {
+    return dealStateV{{.v}}{v{{.v}}}
 }
 
 type dealProposals{{.v}} struct {
@@ -272,6 +314,14 @@ func (s *dealProposals{{.v}}) decode(val *cbg.Deferred) (*DealProposal, error) {
 
 func (s *dealProposals{{.v}}) array() adt.Array {
 	return s.Array
+}
+
+type pendingProposals{{.v}} struct {
+    *adt{{.v}}.Set
+}
+
+func (s *pendingProposals{{.v}}) Has(proposalCid cid.Cid) (bool, error) {
+    return s.Set.Has(abi.CidKey(proposalCid))
 }
 
 func fromV{{.v}}DealProposal(v{{.v}} market{{.v}}.DealProposal) (DealProposal, error) {

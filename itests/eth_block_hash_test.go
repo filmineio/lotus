@@ -3,7 +3,6 @@ package itests
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +10,9 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 
+	"github.com/filecoin-project/lotus/build/buildconstants"
+	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/itests/kit"
 )
 
@@ -24,44 +26,56 @@ import (
 func TestEthBlockHashesCorrect_MultiBlockTipset(t *testing.T) {
 	// miner is connected to the first node, and we want to observe the chain
 	// from the second node.
-	blocktime := 250 * time.Millisecond
+	blocktime := 100 * time.Millisecond
 	n1, m1, m2, ens := kit.EnsembleOneTwo(t,
 		kit.MockProofs(),
 		kit.ThroughRPC(),
 	)
 	ens.InterconnectAll().BeginMining(blocktime)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	n1.WaitTillChain(ctx, kit.HeightAtLeast(abi.ChainEpoch(5)))
-	defer cancel()
+	{
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		n1.WaitTillChain(ctx, kit.HeightAtLeast(abi.ChainEpoch(10)))
+		cancel()
+	}
 
 	var n2 kit.TestFullNode
 	ens.FullNode(&n2, kit.ThroughRPC()).Start().Connect(n2, n1)
 
-	// find the first tipset where all miners mined a block.
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	n2.WaitTillChain(ctx, kit.BlocksMinedByAll(m1.ActorAddr, m2.ActorAddr))
-	defer cancel()
+	var head *types.TipSet
+	{
+		// find the first tipset where all miners mined a block.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		head = n2.WaitTillChain(ctx, kit.BlocksMinedByAll(m1.ActorAddr, m2.ActorAddr))
+		cancel()
+	}
 
-	head, err := n2.ChainHead(context.Background())
-	require.NoError(t, err)
+	ctx := context.Background()
 
 	// let the chain run a little bit longer to minimise the chance of reorgs
 	n2.WaitTillChain(ctx, kit.HeightAtLeast(head.Height()+50))
 
+	tsk := head.Key()
 	for i := 1; i <= int(head.Height()); i++ {
 		hex := fmt.Sprintf("0x%x", i)
 
-		ethBlockA, err := n2.EthGetBlockByNumber(ctx, hex, true)
-		// Cannot use static ErrFullRound error for comparison since it gets reserialized as a JSON RPC error.
-		if err != nil && strings.Contains(err.Error(), "null round") {
+		ts, err := n2.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(i), tsk)
+		require.NoError(t, err)
+		if ts.Height() != abi.ChainEpoch(i) { // null round
 			continue
 		}
+
+		ethBlockA, err := n2.EthGetBlockByNumber(ctx, hex, true)
 		require.NoError(t, err)
+		require.EqualValues(t, ts.Height(), ethBlockA.Number)
 
 		ethBlockB, err := n2.EthGetBlockByHash(ctx, ethBlockA.Hash, true)
 		require.NoError(t, err)
 
 		require.Equal(t, ethBlockA, ethBlockB)
+
+		numBlocks := len(ts.Blocks())
+		expGasLimit := ethtypes.EthUint64(int64(numBlocks) * buildconstants.BlockGasLimit)
+		require.Equal(t, expGasLimit, ethBlockB.GasLimit, "expected gas limit to be %d for %d blocks", expGasLimit, numBlocks)
 	}
 }

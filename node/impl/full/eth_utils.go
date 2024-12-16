@@ -20,9 +20,10 @@ import (
 	"github.com/filecoin-project/go-state-types/exitcode"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -57,6 +58,22 @@ func getTipsetByBlockNumber(ctx context.Context, chain *store.ChainStore, blkPar
 			return nil, fmt.Errorf("cannot get parent tipset")
 		}
 		return parent, nil
+	case "safe":
+		latestHeight := head.Height() - 1
+		safeHeight := latestHeight - ethtypes.SafeEpochDelay
+		ts, err := chain.GetTipsetByHeight(ctx, safeHeight, head, true)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get tipset at height: %v", safeHeight)
+		}
+		return ts, nil
+	case "finalized":
+		latestHeight := head.Height() - 1
+		safeHeight := latestHeight - policy.ChainFinality
+		ts, err := chain.GetTipsetByHeight(ctx, safeHeight, head, true)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get tipset at height: %v", safeHeight)
+		}
+		return ts, nil
 	default:
 		var num ethtypes.EthUint64
 		err := num.UnmarshalJSON([]byte(`"` + blkParam + `"`))
@@ -71,7 +88,7 @@ func getTipsetByBlockNumber(ctx context.Context, chain *store.ChainStore, blkPar
 			return nil, fmt.Errorf("cannot get tipset at height: %v", num)
 		}
 		if strict && ts.Height() != abi.ChainEpoch(num) {
-			return nil, ErrNullRound
+			return nil, api.NewErrNullRound(abi.ChainEpoch(num))
 		}
 		return ts, nil
 	}
@@ -92,9 +109,8 @@ func getTipsetByEthBlockNumberOrHash(ctx context.Context, chain *store.ChainStor
 				return nil, fmt.Errorf("cannot get parent tipset")
 			}
 			return parent, nil
-		} else {
-			return nil, fmt.Errorf("unknown predefined block %s", *predefined)
 		}
+		return nil, fmt.Errorf("unknown predefined block %s", *predefined)
 	}
 
 	if blkParam.BlockNumber != nil {
@@ -187,7 +203,7 @@ func ethCallToFilecoinMessage(ctx context.Context, tx ethtypes.EthCall) (*types.
 		Value:      big.Int(tx.Value),
 		Method:     method,
 		Params:     params,
-		GasLimit:   build.BlockGasLimit,
+		GasLimit:   buildconstants.BlockGasLimit,
 		GasFeeCap:  big.Zero(),
 		GasPremium: big.Zero(),
 	}, nil
@@ -225,7 +241,7 @@ func newEthBlockFromFilecoinTipSet(ctx context.Context, ts *types.TipSet, fullTx
 		return ethtypes.EthBlock{}, xerrors.Errorf("failed to load state-tree root %q: %w", stRoot, err)
 	}
 
-	block := ethtypes.NewEthBlock(len(msgs) > 0)
+	block := ethtypes.NewEthBlock(len(msgs) > 0, len(ts.Blocks()))
 
 	gasUsed := int64(0)
 	for i, msg := range msgs {
@@ -251,7 +267,6 @@ func newEthBlockFromFilecoinTipSet(ctx context.Context, ts *types.TipSet, fullTx
 			return ethtypes.EthBlock{}, xerrors.Errorf("failed to convert msg to ethTx: %w", err)
 		}
 
-		tx.ChainID = ethtypes.EthUint64(build.Eip155ChainId)
 		tx.BlockHash = &blkHash
 		tx.BlockNumber = &bn
 		tx.TransactionIndex = &ti
@@ -280,7 +295,7 @@ func executeTipset(ctx context.Context, ts *types.TipSet, cs *store.ChainStore, 
 
 	stRoot, rcptRoot, err := sa.StateManager.TipSetState(ctx, ts)
 	if err != nil {
-		return cid.Undef, nil, nil, xerrors.Errorf("failed to compute state: %w", err)
+		return cid.Undef, nil, nil, xerrors.Errorf("failed to compute tipset state: %w", err)
 	}
 
 	rcpts, err := cs.ReadReceipts(ctx, rcptRoot)
@@ -298,7 +313,7 @@ func executeTipset(ctx context.Context, ts *types.TipSet, cs *store.ChainStore, 
 const errorFunctionSelector = "\x08\xc3\x79\xa0" // Error(string)
 const panicFunctionSelector = "\x4e\x48\x7b\x71" // Panic(uint256)
 // Eth ABI (solidity) panic codes.
-var panicErrorCodes map[uint64]string = map[uint64]string{
+var panicErrorCodes = map[uint64]string{
 	0x00: "Panic()",
 	0x01: "Assert()",
 	0x11: "ArithmeticOverflow()",
@@ -316,28 +331,18 @@ var panicErrorCodes map[uint64]string = map[uint64]string{
 //
 // See https://docs.soliditylang.org/en/latest/control-structures.html#panic-via-assert-and-error-via-require
 func parseEthRevert(ret []byte) string {
-	if len(ret) == 0 {
-		return "none"
-	}
-	var cbytes abi.CborBytes
-	if err := cbytes.UnmarshalCBOR(bytes.NewReader(ret)); err != nil {
-		return "ERROR: revert reason is not cbor encoded bytes"
-	}
-	if len(cbytes) == 0 {
-		return "none"
-	}
 	// If it's not long enough to contain an ABI encoded response, return immediately.
-	if len(cbytes) < 4+32 {
-		return ethtypes.EthBytes(cbytes).String()
+	if len(ret) < 4+32 {
+		return ethtypes.EthBytes(ret).String()
 	}
-	switch string(cbytes[:4]) {
+	switch string(ret[:4]) {
 	case panicFunctionSelector:
-		cbytes := cbytes[4 : 4+32]
+		ret := ret[4 : 4+32]
 		// Read the and check the code.
-		code, err := ethtypes.EthUint64FromBytes(cbytes)
+		code, err := ethtypes.EthUint64FromBytes(ret)
 		if err != nil {
 			// If it's too big, just return the raw value.
-			codeInt := big.PositiveFromUnsignedBytes(cbytes)
+			codeInt := big.PositiveFromUnsignedBytes(ret)
 			return fmt.Sprintf("Panic(%s)", ethtypes.EthBigInt(codeInt).String())
 		}
 		if s, ok := panicErrorCodes[uint64(code)]; ok {
@@ -345,33 +350,33 @@ func parseEthRevert(ret []byte) string {
 		}
 		return fmt.Sprintf("Panic(0x%x)", code)
 	case errorFunctionSelector:
-		cbytes := cbytes[4:]
-		cbytesLen := ethtypes.EthUint64(len(cbytes))
+		ret := ret[4:]
+		retLen := ethtypes.EthUint64(len(ret))
 		// Read the and check the offset.
-		offset, err := ethtypes.EthUint64FromBytes(cbytes[:32])
+		offset, err := ethtypes.EthUint64FromBytes(ret[:32])
 		if err != nil {
 			break
 		}
-		if cbytesLen < offset {
+		if retLen < offset {
 			break
 		}
 
 		// Read and check the length.
-		if cbytesLen-offset < 32 {
+		if retLen-offset < 32 {
 			break
 		}
 		start := offset + 32
-		length, err := ethtypes.EthUint64FromBytes(cbytes[offset : offset+32])
+		length, err := ethtypes.EthUint64FromBytes(ret[offset : offset+32])
 		if err != nil {
 			break
 		}
-		if cbytesLen-start < length {
+		if retLen-start < length {
 			break
 		}
 		// Slice the error message.
-		return fmt.Sprintf("Error(%s)", cbytes[start:start+length])
+		return fmt.Sprintf("Error(%s)", ret[start:start+length])
 	}
-	return ethtypes.EthBytes(cbytes).String()
+	return ethtypes.EthBytes(ret).String()
 }
 
 // lookupEthAddress makes its best effort at finding the Ethereum address for a
@@ -382,34 +387,37 @@ func parseEthRevert(ret []byte) string {
 //  3. Otherwise, we fall back to returning a masked ID Ethereum address. If the supplied address is an f0 address, we
 //     use that ID to form the masked ID address.
 //  4. Otherwise, we fetch the actor's ID from the state tree and form the masked ID with it.
+//
+// If the actor doesn't exist in the state-tree but we have its ID, we use a masked ID address. It could have been deleted.
 func lookupEthAddress(addr address.Address, st *state.StateTree) (ethtypes.EthAddress, error) {
-	// BLOCK A: We are trying to get an actual Ethereum address from an f410 address.
 	// Attempt to convert directly, if it's an f4 address.
 	ethAddr, err := ethtypes.EthAddressFromFilecoinAddress(addr)
 	if err == nil && !ethAddr.IsMaskedID() {
 		return ethAddr, nil
 	}
 
-	// Lookup on the target actor and try to get an f410 address.
-	if actor, err := st.GetActor(addr); err != nil {
-		return ethtypes.EthAddress{}, err
-	} else if actor.Address != nil {
-		if ethAddr, err := ethtypes.EthAddressFromFilecoinAddress(*actor.Address); err == nil && !ethAddr.IsMaskedID() {
-			return ethAddr, nil
-		}
-	}
-
-	// BLOCK B: We gave up on getting an actual Ethereum address and are falling back to a Masked ID address.
-	// Check if we already have an ID addr, and use it if possible.
-	if err == nil && ethAddr.IsMaskedID() {
-		return ethAddr, nil
-	}
-
 	// Otherwise, resolve the ID addr.
-	idAddr, err := st.LookupID(addr)
+	idAddr, err := st.LookupIDAddress(addr)
 	if err != nil {
 		return ethtypes.EthAddress{}, err
 	}
+
+	// revive:disable:empty-block easier to grok when the cases are explicit
+
+	// Lookup on the target actor and try to get an f410 address.
+	if actor, err := st.GetActor(idAddr); errors.Is(err, types.ErrActorNotFound) {
+		// Not found -> use a masked ID address
+	} else if err != nil {
+		// Any other error -> fail.
+		return ethtypes.EthAddress{}, err
+	} else if actor.DelegatedAddress == nil {
+		// No delegated address -> use masked ID address.
+	} else if ethAddr, err := ethtypes.EthAddressFromFilecoinAddress(*actor.DelegatedAddress); err == nil && !ethAddr.IsMaskedID() {
+		// Conversable into an eth address, use it.
+		return ethAddr, nil
+	}
+
+	// Otherwise, use the masked address.
 	return ethtypes.EthAddressFromFilecoinAddress(idAddr)
 }
 
@@ -447,7 +455,7 @@ func ethTxHashFromMessageCid(ctx context.Context, c cid.Cid, sa StateAPI) (ethty
 
 func ethTxHashFromSignedMessage(smsg *types.SignedMessage) (ethtypes.EthHash, error) {
 	if smsg.Signature.Type == crypto.SigTypeDelegated {
-		tx, err := ethtypes.EthTxFromSignedEthMessage(smsg)
+		tx, err := ethtypes.EthTransactionFromSignedFilecoinMessage(smsg)
 		if err != nil {
 			return ethtypes.EthHash{}, xerrors.Errorf("failed to convert from signed message: %w", err)
 		}
@@ -455,9 +463,9 @@ func ethTxHashFromSignedMessage(smsg *types.SignedMessage) (ethtypes.EthHash, er
 		return tx.TxHash()
 	} else if smsg.Signature.Type == crypto.SigTypeSecp256k1 {
 		return ethtypes.EthHashFromCid(smsg.Cid())
-	} else { // BLS message
-		return ethtypes.EthHashFromCid(smsg.Message.Cid())
 	}
+	// else BLS message
+	return ethtypes.EthHashFromCid(smsg.Message.Cid())
 }
 
 func newEthTxFromSignedMessage(smsg *types.SignedMessage, st *state.StateTree) (ethtypes.EthTx, error) {
@@ -466,14 +474,13 @@ func newEthTxFromSignedMessage(smsg *types.SignedMessage, st *state.StateTree) (
 
 	// This is an eth tx
 	if smsg.Signature.Type == crypto.SigTypeDelegated {
-		tx, err = ethtypes.EthTxFromSignedEthMessage(smsg)
+		ethTx, err := ethtypes.EthTransactionFromSignedFilecoinMessage(smsg)
 		if err != nil {
 			return ethtypes.EthTx{}, xerrors.Errorf("failed to convert from signed message: %w", err)
 		}
-
-		tx.Hash, err = tx.TxHash()
+		tx, err = ethTx.ToEthTx(smsg)
 		if err != nil {
-			return ethtypes.EthTx{}, xerrors.Errorf("failed to calculate hash for ethTx: %w", err)
+			return ethtypes.EthTx{}, xerrors.Errorf("failed to convert from signed message: %w", err)
 		}
 	} else if smsg.Signature.Type == crypto.SigTypeSecp256k1 { // Secp Filecoin Message
 		tx, err = ethTxFromNativeMessage(smsg.VMMessage(), st)
@@ -533,18 +540,21 @@ func ethTxFromNativeMessage(msg *types.Message, st *state.StateTree) (ethtypes.E
 		codec = uint64(multicodec.Cbor)
 	}
 
+	maxFeePerGas := ethtypes.EthBigInt(msg.GasFeeCap)
+	maxPriorityFeePerGas := ethtypes.EthBigInt(msg.GasPremium)
+
 	// We decode as a native call first.
 	ethTx := ethtypes.EthTx{
 		To:                   &to,
 		From:                 from,
 		Input:                encodeFilecoinParamsAsABI(msg.Method, codec, msg.Params),
 		Nonce:                ethtypes.EthUint64(msg.Nonce),
-		ChainID:              ethtypes.EthUint64(build.Eip155ChainId),
+		ChainID:              ethtypes.EthUint64(buildconstants.Eip155ChainId),
 		Value:                ethtypes.EthBigInt(msg.Value),
-		Type:                 ethtypes.Eip1559TxType,
+		Type:                 ethtypes.EIP1559TxType,
 		Gas:                  ethtypes.EthUint64(msg.GasLimit),
-		MaxFeePerGas:         ethtypes.EthBigInt(msg.GasFeeCap),
-		MaxPriorityFeePerGas: ethtypes.EthBigInt(msg.GasPremium),
+		MaxFeePerGas:         &maxFeePerGas,
+		MaxPriorityFeePerGas: &maxPriorityFeePerGas,
 		AccessList:           []ethtypes.EthHash{},
 	}
 
@@ -623,19 +633,18 @@ func newEthTxFromMessageLookup(ctx context.Context, msgLookup *api.MsgLookup, tx
 		}
 	}
 
-	blkHash, err := ethtypes.EthHashFromCid(parentTsCid)
-	if err != nil {
-		return ethtypes.EthTx{}, err
-	}
-
-	smsg, err := getSignedMessage(ctx, cs, msgLookup.Message)
-	if err != nil {
-		return ethtypes.EthTx{}, xerrors.Errorf("failed to get signed msg: %w", err)
-	}
-
 	st, err := sa.StateManager.StateTree(ts.ParentState())
 	if err != nil {
 		return ethtypes.EthTx{}, xerrors.Errorf("failed to load message state tree: %w", err)
+	}
+
+	return newEthTx(ctx, cs, st, parentTs.Height(), parentTsCid, msgLookup.Message, txIdx)
+}
+
+func newEthTx(ctx context.Context, cs *store.ChainStore, st *state.StateTree, blockHeight abi.ChainEpoch, msgTsCid cid.Cid, msgCid cid.Cid, txIdx int) (ethtypes.EthTx, error) {
+	smsg, err := getSignedMessage(ctx, cs, msgCid)
+	if err != nil {
+		return ethtypes.EthTx{}, xerrors.Errorf("failed to get signed msg: %w", err)
 	}
 
 	tx, err := newEthTxFromSignedMessage(smsg, st)
@@ -644,17 +653,23 @@ func newEthTxFromMessageLookup(ctx context.Context, msgLookup *api.MsgLookup, tx
 	}
 
 	var (
-		bn = ethtypes.EthUint64(parentTs.Height())
+		bn = ethtypes.EthUint64(blockHeight)
 		ti = ethtypes.EthUint64(txIdx)
 	)
+
+	blkHash, err := ethtypes.EthHashFromCid(msgTsCid)
+	if err != nil {
+		return ethtypes.EthTx{}, err
+	}
 
 	tx.BlockHash = &blkHash
 	tx.BlockNumber = &bn
 	tx.TransactionIndex = &ti
+
 	return tx, nil
 }
 
-func newEthTxReceipt(ctx context.Context, tx ethtypes.EthTx, lookup *api.MsgLookup, ca ChainAPI, sa StateAPI) (api.EthTxReceipt, error) {
+func newEthTxReceipt(ctx context.Context, tx ethtypes.EthTx, baseFee big.Int, msgReceipt types.MessageReceipt, ev *EthEventHandler) (api.EthTxReceipt, error) {
 	var (
 		transactionIndex ethtypes.EthUint64
 		blockHash        ethtypes.EthHash
@@ -671,124 +686,76 @@ func newEthTxReceipt(ctx context.Context, tx ethtypes.EthTx, lookup *api.MsgLook
 		blockNumber = *tx.BlockNumber
 	}
 
-	receipt := api.EthTxReceipt{
+	txReceipt := api.EthTxReceipt{
 		TransactionHash:  tx.Hash,
 		From:             tx.From,
 		To:               tx.To,
 		TransactionIndex: transactionIndex,
 		BlockHash:        blockHash,
 		BlockNumber:      blockNumber,
-		Type:             ethtypes.EthUint64(2),
+		Type:             tx.Type,
 		Logs:             []ethtypes.EthLog{}, // empty log array is compulsory when no logs, or libraries like ethers.js break
-		LogsBloom:        ethtypes.EmptyEthBloom[:],
+		LogsBloom:        ethtypes.NewEmptyEthBloom(),
 	}
 
-	if lookup.Receipt.ExitCode.IsSuccess() {
-		receipt.Status = 1
+	if msgReceipt.ExitCode.IsSuccess() {
+		txReceipt.Status = 1
 	} else {
-		receipt.Status = 0
+		txReceipt.Status = 0
 	}
 
-	receipt.GasUsed = ethtypes.EthUint64(lookup.Receipt.GasUsed)
+	txReceipt.GasUsed = ethtypes.EthUint64(msgReceipt.GasUsed)
 
 	// TODO: handle CumulativeGasUsed
-	receipt.CumulativeGasUsed = ethtypes.EmptyEthInt
+	txReceipt.CumulativeGasUsed = ethtypes.EmptyEthInt
 
-	// TODO: avoid loading the tipset twice (once here, once when we convert the message to a txn)
-	ts, err := ca.Chain.GetTipSetFromKey(ctx, lookup.TipSet)
+	gasFeeCap, err := tx.GasFeeCap()
 	if err != nil {
-		return api.EthTxReceipt{}, xerrors.Errorf("failed to lookup tipset %s when constructing the eth txn receipt: %w", lookup.TipSet, err)
+		return api.EthTxReceipt{}, xerrors.Errorf("failed to get gas fee cap: %w", err)
+	}
+	gasPremium, err := tx.GasPremium()
+	if err != nil {
+		return api.EthTxReceipt{}, xerrors.Errorf("failed to get gas premium: %w", err)
 	}
 
-	st, err := sa.StateManager.StateTree(ts.ParentState())
-	if err != nil {
-		return api.EthTxReceipt{}, xerrors.Errorf("failed to load the state %s when constructing the eth txn receipt: %w", ts.ParentState(), err)
-	}
-
-	// The tx is located in the parent tipset
-	parentTs, err := ca.Chain.LoadTipSet(ctx, ts.Parents())
-	if err != nil {
-		return api.EthTxReceipt{}, xerrors.Errorf("failed to lookup tipset %s when constructing the eth txn receipt: %w", ts.Parents(), err)
-	}
-
-	baseFee := parentTs.Blocks()[0].ParentBaseFee
-	gasOutputs := vm.ComputeGasOutputs(lookup.Receipt.GasUsed, int64(tx.Gas), baseFee, big.Int(tx.MaxFeePerGas), big.Int(tx.MaxPriorityFeePerGas), true)
+	gasOutputs := vm.ComputeGasOutputs(msgReceipt.GasUsed, int64(tx.Gas), baseFee, big.Int(gasFeeCap),
+		big.Int(gasPremium), true)
 	totalSpent := big.Sum(gasOutputs.BaseFeeBurn, gasOutputs.MinerTip, gasOutputs.OverEstimationBurn)
 
 	effectiveGasPrice := big.Zero()
-	if lookup.Receipt.GasUsed > 0 {
-		effectiveGasPrice = big.Div(totalSpent, big.NewInt(lookup.Receipt.GasUsed))
+	if msgReceipt.GasUsed > 0 {
+		effectiveGasPrice = big.Div(totalSpent, big.NewInt(msgReceipt.GasUsed))
 	}
-	receipt.EffectiveGasPrice = ethtypes.EthBigInt(effectiveGasPrice)
+	txReceipt.EffectiveGasPrice = ethtypes.EthBigInt(effectiveGasPrice)
 
-	if receipt.To == nil && lookup.Receipt.ExitCode.IsSuccess() {
+	if txReceipt.To == nil && msgReceipt.ExitCode.IsSuccess() {
 		// Create and Create2 return the same things.
 		var ret eam.CreateExternalReturn
-		if err := ret.UnmarshalCBOR(bytes.NewReader(lookup.Receipt.Return)); err != nil {
+		if err := ret.UnmarshalCBOR(bytes.NewReader(msgReceipt.Return)); err != nil {
 			return api.EthTxReceipt{}, xerrors.Errorf("failed to parse contract creation result: %w", err)
 		}
 		addr := ethtypes.EthAddress(ret.EthAddress)
-		receipt.ContractAddress = &addr
+		txReceipt.ContractAddress = &addr
 	}
 
-	var events []types.Event
-	if rct := lookup.Receipt; rct.EventsRoot != nil {
-		events, err = ca.ChainGetEvents(ctx, *rct.EventsRoot)
+	if rct := msgReceipt; rct.EventsRoot != nil {
+		logs, err := ev.getEthLogsForBlockAndTransaction(ctx, &blockHash, tx.Hash)
 		if err != nil {
-			// Fore-recompute, we must have enabled the Event APIs after computing this
-			// tipset.
-			if _, _, err := sa.StateManager.RecomputeTipSetState(ctx, ts); err != nil {
-
-				return api.EthTxReceipt{}, xerrors.Errorf("failed get events: %w", err)
-			}
-			// Try again
-			events, err = ca.ChainGetEvents(ctx, *rct.EventsRoot)
-			if err != nil {
-				return api.EthTxReceipt{}, xerrors.Errorf("failed get events: %w", err)
-			}
+			return api.EthTxReceipt{}, xerrors.Errorf("failed to get eth logs for block and transaction: %w", err)
+		}
+		if len(logs) > 0 {
+			txReceipt.Logs = logs
 		}
 	}
 
-	if len(events) > 0 {
-		receipt.Logs = make([]ethtypes.EthLog, 0, len(events))
-		for i, evt := range events {
-			l := ethtypes.EthLog{
-				Removed:          false,
-				LogIndex:         ethtypes.EthUint64(i),
-				TransactionHash:  tx.Hash,
-				TransactionIndex: transactionIndex,
-				BlockHash:        blockHash,
-				BlockNumber:      blockNumber,
-			}
-
-			data, topics, ok := ethLogFromEvent(evt.Entries)
-			if !ok {
-				// not an eth event.
-				continue
-			}
-			for _, topic := range topics {
-				log.Debug("LogsBloom set for ", topic)
-				ethtypes.EthBloomSet(receipt.LogsBloom, topic[:])
-			}
-			l.Data = data
-			l.Topics = topics
-
-			addr, err := address.NewIDAddress(uint64(evt.Emitter))
-			if err != nil {
-				return api.EthTxReceipt{}, xerrors.Errorf("failed to create ID address: %w", err)
-			}
-
-			l.Address, err = lookupEthAddress(addr, st)
-			if err != nil {
-				return api.EthTxReceipt{}, xerrors.Errorf("failed to resolve Ethereum address: %w", err)
-			}
-
-			ethtypes.EthBloomSet(receipt.LogsBloom, l.Address[:])
-			receipt.Logs = append(receipt.Logs, l)
+	for _, log := range txReceipt.Logs {
+		for _, topic := range log.Topics {
+			ethtypes.EthBloomSet(txReceipt.LogsBloom, topic[:])
 		}
+		ethtypes.EthBloomSet(txReceipt.LogsBloom, log.Address[:])
 	}
 
-	return receipt, nil
+	return txReceipt, nil
 }
 
 func encodeFilecoinParamsAsABI(method abi.MethodNum, codec uint64, params []byte) []byte {
@@ -816,8 +783,8 @@ func encodeAsABIHelper(param1 uint64, param2 uint64, data []byte) []byte {
 	if len(data)%EVM_WORD_SIZE != 0 {
 		totalWords++
 	}
-	len := totalWords * EVM_WORD_SIZE
-	buf := make([]byte, len)
+	sz := totalWords * EVM_WORD_SIZE
+	buf := make([]byte, sz)
 	offset := 0
 	// Below, we use copy instead of "appending" to preserve all the zero padding.
 	for _, arg := range staticArgs {

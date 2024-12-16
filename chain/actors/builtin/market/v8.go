@@ -13,6 +13,7 @@ import (
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
+	"github.com/filecoin-project/go-state-types/builtin"
 	market8 "github.com/filecoin-project/go-state-types/builtin/v8/market"
 	adt8 "github.com/filecoin-project/go-state-types/builtin/v8/util/adt"
 	markettypes "github.com/filecoin-project/go-state-types/builtin/v9/market"
@@ -105,6 +106,14 @@ func (s *state8) Proposals() (DealProposals, error) {
 	return &dealProposals8{proposalArray}, nil
 }
 
+func (s *state8) PendingProposals() (PendingProposals, error) {
+	proposalCidSet, err := adt8.AsSet(s.store, s.State.PendingProposals, builtin.DefaultHamtBitwidth)
+	if err != nil {
+		return nil, err
+	}
+	return &pendingProposals8{proposalCidSet}, nil
+}
+
 func (s *state8) EscrowTable() (BalanceTable, error) {
 	bt, err := adt8.AsBalanceTable(s.store, s.State.EscrowTable)
 	if err != nil {
@@ -123,9 +132,9 @@ func (s *state8) LockedTable() (BalanceTable, error) {
 
 func (s *state8) VerifyDealsForActivation(
 	minerAddr address.Address, deals []abi.DealID, currEpoch, sectorExpiry abi.ChainEpoch,
-) (weight, verifiedWeight abi.DealWeight, err error) {
-	w, vw, _, err := market8.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
-	return w, vw, err
+) (verifiedWeight abi.DealWeight, err error) {
+	_, vw, _, err := market8.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
+	return vw, err
 }
 
 func (s *state8) NextID() (abi.DealID, error) {
@@ -152,7 +161,7 @@ type dealStates8 struct {
 	adt.Array
 }
 
-func (s *dealStates8) Get(dealID abi.DealID) (*DealState, bool, error) {
+func (s *dealStates8) Get(dealID abi.DealID) (DealState, bool, error) {
 	var deal8 market8.DealState
 	found, err := s.Array.Get(uint64(dealID), &deal8)
 	if err != nil {
@@ -162,7 +171,7 @@ func (s *dealStates8) Get(dealID abi.DealID) (*DealState, bool, error) {
 		return nil, false, nil
 	}
 	deal := fromV8DealState(deal8)
-	return &deal, true, nil
+	return deal, true, nil
 }
 
 func (s *dealStates8) ForEach(cb func(dealID abi.DealID, ds DealState) error) error {
@@ -172,28 +181,63 @@ func (s *dealStates8) ForEach(cb func(dealID abi.DealID, ds DealState) error) er
 	})
 }
 
-func (s *dealStates8) decode(val *cbg.Deferred) (*DealState, error) {
+func (s *dealStates8) decode(val *cbg.Deferred) (DealState, error) {
 	var ds8 market8.DealState
 	if err := ds8.UnmarshalCBOR(bytes.NewReader(val.Raw)); err != nil {
 		return nil, err
 	}
 	ds := fromV8DealState(ds8)
-	return &ds, nil
+	return ds, nil
 }
 
 func (s *dealStates8) array() adt.Array {
 	return s.Array
 }
 
-func fromV8DealState(v8 market8.DealState) DealState {
-	ret := DealState{
-		SectorStartEpoch: v8.SectorStartEpoch,
-		LastUpdatedEpoch: v8.LastUpdatedEpoch,
-		SlashEpoch:       v8.SlashEpoch,
-		VerifiedClaim:    0,
+type dealStateV8 struct {
+	ds8 market8.DealState
+}
+
+func (d dealStateV8) SectorNumber() abi.SectorNumber {
+
+	return 0
+
+}
+
+func (d dealStateV8) SectorStartEpoch() abi.ChainEpoch {
+	return d.ds8.SectorStartEpoch
+}
+
+func (d dealStateV8) LastUpdatedEpoch() abi.ChainEpoch {
+	return d.ds8.LastUpdatedEpoch
+}
+
+func (d dealStateV8) SlashEpoch() abi.ChainEpoch {
+	return d.ds8.SlashEpoch
+}
+
+func (d dealStateV8) Equals(other DealState) bool {
+	if ov8, ok := other.(dealStateV8); ok {
+		return d.ds8 == ov8.ds8
 	}
 
-	return ret
+	if d.SectorStartEpoch() != other.SectorStartEpoch() {
+		return false
+	}
+	if d.LastUpdatedEpoch() != other.LastUpdatedEpoch() {
+		return false
+	}
+	if d.SlashEpoch() != other.SlashEpoch() {
+		return false
+	}
+
+	return true
+}
+
+var _ DealState = (*dealStateV8)(nil)
+
+func fromV8DealState(v8 market8.DealState) DealState {
+	return dealStateV8{v8}
 }
 
 type dealProposals8 struct {
@@ -246,6 +290,14 @@ func (s *dealProposals8) decode(val *cbg.Deferred) (*DealProposal, error) {
 
 func (s *dealProposals8) array() adt.Array {
 	return s.Array
+}
+
+type pendingProposals8 struct {
+	*adt8.Set
+}
+
+func (s *pendingProposals8) Has(proposalCid cid.Cid) (bool, error) {
+	return s.Set.Has(abi.CidKey(proposalCid))
 }
 
 func fromV8DealProposal(v8 market8.DealProposal) (DealProposal, error) {

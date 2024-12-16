@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
+	"github.com/filecoin-project/go-state-types/builtin"
 	"github.com/filecoin-project/go-state-types/manifest"
 	market3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/market"
 	adt3 "github.com/filecoin-project/specs-actors/v3/actors/util/adt"
@@ -102,6 +103,14 @@ func (s *state3) Proposals() (DealProposals, error) {
 	return &dealProposals3{proposalArray}, nil
 }
 
+func (s *state3) PendingProposals() (PendingProposals, error) {
+	proposalCidSet, err := adt3.AsSet(s.store, s.State.PendingProposals, builtin.DefaultHamtBitwidth)
+	if err != nil {
+		return nil, err
+	}
+	return &pendingProposals3{proposalCidSet}, nil
+}
+
 func (s *state3) EscrowTable() (BalanceTable, error) {
 	bt, err := adt3.AsBalanceTable(s.store, s.State.EscrowTable)
 	if err != nil {
@@ -120,9 +129,9 @@ func (s *state3) LockedTable() (BalanceTable, error) {
 
 func (s *state3) VerifyDealsForActivation(
 	minerAddr address.Address, deals []abi.DealID, currEpoch, sectorExpiry abi.ChainEpoch,
-) (weight, verifiedWeight abi.DealWeight, err error) {
-	w, vw, _, err := market3.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
-	return w, vw, err
+) (verifiedWeight abi.DealWeight, err error) {
+	_, vw, _, err := market3.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
+	return vw, err
 }
 
 func (s *state3) NextID() (abi.DealID, error) {
@@ -149,7 +158,7 @@ type dealStates3 struct {
 	adt.Array
 }
 
-func (s *dealStates3) Get(dealID abi.DealID) (*DealState, bool, error) {
+func (s *dealStates3) Get(dealID abi.DealID) (DealState, bool, error) {
 	var deal3 market3.DealState
 	found, err := s.Array.Get(uint64(dealID), &deal3)
 	if err != nil {
@@ -159,7 +168,7 @@ func (s *dealStates3) Get(dealID abi.DealID) (*DealState, bool, error) {
 		return nil, false, nil
 	}
 	deal := fromV3DealState(deal3)
-	return &deal, true, nil
+	return deal, true, nil
 }
 
 func (s *dealStates3) ForEach(cb func(dealID abi.DealID, ds DealState) error) error {
@@ -169,28 +178,63 @@ func (s *dealStates3) ForEach(cb func(dealID abi.DealID, ds DealState) error) er
 	})
 }
 
-func (s *dealStates3) decode(val *cbg.Deferred) (*DealState, error) {
+func (s *dealStates3) decode(val *cbg.Deferred) (DealState, error) {
 	var ds3 market3.DealState
 	if err := ds3.UnmarshalCBOR(bytes.NewReader(val.Raw)); err != nil {
 		return nil, err
 	}
 	ds := fromV3DealState(ds3)
-	return &ds, nil
+	return ds, nil
 }
 
 func (s *dealStates3) array() adt.Array {
 	return s.Array
 }
 
-func fromV3DealState(v3 market3.DealState) DealState {
-	ret := DealState{
-		SectorStartEpoch: v3.SectorStartEpoch,
-		LastUpdatedEpoch: v3.LastUpdatedEpoch,
-		SlashEpoch:       v3.SlashEpoch,
-		VerifiedClaim:    0,
+type dealStateV3 struct {
+	ds3 market3.DealState
+}
+
+func (d dealStateV3) SectorNumber() abi.SectorNumber {
+
+	return 0
+
+}
+
+func (d dealStateV3) SectorStartEpoch() abi.ChainEpoch {
+	return d.ds3.SectorStartEpoch
+}
+
+func (d dealStateV3) LastUpdatedEpoch() abi.ChainEpoch {
+	return d.ds3.LastUpdatedEpoch
+}
+
+func (d dealStateV3) SlashEpoch() abi.ChainEpoch {
+	return d.ds3.SlashEpoch
+}
+
+func (d dealStateV3) Equals(other DealState) bool {
+	if ov3, ok := other.(dealStateV3); ok {
+		return d.ds3 == ov3.ds3
 	}
 
-	return ret
+	if d.SectorStartEpoch() != other.SectorStartEpoch() {
+		return false
+	}
+	if d.LastUpdatedEpoch() != other.LastUpdatedEpoch() {
+		return false
+	}
+	if d.SlashEpoch() != other.SlashEpoch() {
+		return false
+	}
+
+	return true
+}
+
+var _ DealState = (*dealStateV3)(nil)
+
+func fromV3DealState(v3 market3.DealState) DealState {
+	return dealStateV3{v3}
 }
 
 type dealProposals3 struct {
@@ -243,6 +287,14 @@ func (s *dealProposals3) decode(val *cbg.Deferred) (*DealProposal, error) {
 
 func (s *dealProposals3) array() adt.Array {
 	return s.Array
+}
+
+type pendingProposals3 struct {
+	*adt3.Set
+}
+
+func (s *pendingProposals3) Has(proposalCid cid.Cid) (bool, error) {
+	return s.Set.Has(abi.CidKey(proposalCid))
 }
 
 func fromV3DealProposal(v3 market3.DealProposal) (DealProposal, error) {

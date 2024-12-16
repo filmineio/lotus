@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
 
 	"github.com/DataDog/zstd"
+	"github.com/cheggaaa/pb/v3"
 	metricsprom "github.com/ipfs/go-metrics-prometheus"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
@@ -26,17 +26,18 @@ import (
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
-	"gopkg.in/cheggaaa/pb.v1"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-paramfetch"
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/beacon/drand"
 	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/index"
+	proofsffi "github.com/filecoin-project/lotus/chain/proofs/ffi"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -54,7 +55,6 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/testing"
 	"github.com/filecoin-project/lotus/node/repo"
-	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 )
 
 const (
@@ -209,7 +209,7 @@ var DaemonCmd = &cli.Command{
 		}
 
 		ctx, _ := tag.New(context.Background(),
-			tag.Insert(metrics.Version, build.BuildVersion),
+			tag.Insert(metrics.Version, build.NodeBuildVersion),
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "chain"),
 		)
@@ -512,9 +512,13 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 		if err != nil {
 			return xerrors.Errorf("fetching chain CAR failed: setting up resumable reader: %w", err)
 		}
+		defer rrd.Close() //nolint:errcheck
 
-		rd = rrd
 		l = rrd.ContentLength()
+		// without limiting the reader to exactly what we expect, an overread could
+		// result in a virtually freeform remote-error which we would then be unable
+		// to handle properly on our end
+		rd = io.LimitReader(rrd, l)
 	} else {
 		fname, err = homedir.Expand(fname)
 		if err != nil {
@@ -569,12 +573,8 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 		return xerrors.Errorf("peek header: %w", err)
 	}
 
-	bar := pb.New64(l)
+	bar := pb.Full.New(int(l))
 	br := bar.NewProxyReader(bufr)
-	bar.ShowTimeLeft = true
-	bar.ShowPercent = true
-	bar.ShowSpeed = true
-	bar.Units = pb.U_BYTES
 
 	var ir io.Reader = br
 
@@ -607,12 +607,13 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 	}
 
 	if !snapshot {
-		shd, err := drand.BeaconScheduleFromDrandSchedule(build.DrandConfigSchedule(), gen.Timestamp, nil)
+		shd, err := drand.BeaconScheduleFromDrandSchedule(buildconstants.DrandConfigSchedule(), gen.Timestamp, nil)
 		if err != nil {
 			return xerrors.Errorf("failed to construct beacon schedule: %w", err)
 		}
 
-		stm, err := stmgr.NewStateManager(cst, consensus.NewTipSetExecutor(filcns.RewardFunc), vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), shd, mds, index.DummyMsgIndex)
+		stm, err := stmgr.NewStateManager(cst, consensus.NewTipSetExecutor(filcns.RewardFunc),
+			vm.Syscalls(proofsffi.ProofVerifier), filcns.DefaultUpgradeSchedule(), shd, mds, nil)
 		if err != nil {
 			return err
 		}
@@ -628,8 +629,6 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 		return err
 	}
 
-	// populate the message index if user has EnableMsgIndex enabled
-	//
 	c, err := lr.Config()
 	if err != nil {
 		return err
@@ -638,13 +637,23 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 	if !ok {
 		return xerrors.Errorf("invalid config for repo, got: %T", c)
 	}
-	if cfg.Index.EnableMsgIndex {
-		log.Info("populating message index...")
-		if err := index.PopulateAfterSnapshot(ctx, path.Join(lr.Path(), "sqlite"), cst); err != nil {
-			return err
-		}
-		log.Info("populating message index done")
+
+	if !cfg.ChainIndexer.EnableIndexer {
+		log.Info("chain indexer is disabled, not populating index from snapshot")
+		return nil
 	}
+
+	// populate the chain Index from the snapshot
+	basePath, err := lr.ChainIndexPath()
+	if err != nil {
+		return err
+	}
+
+	log.Info("populating chain index from snapshot...")
+	if err := index.PopulateFromSnapshot(ctx, filepath.Join(basePath, index.DefaultDbFilename), cst); err != nil {
+		return err
+	}
+	log.Info("populating chain index from snapshot done")
 
 	return nil
 }
@@ -661,22 +670,10 @@ func removeExistingChain(cctx *cli.Context, lr repo.Repo) error {
 		}
 	}()
 
-	cfg, err := lockedRepo.Config()
+	log.Info("removing splitstore directory...")
+	err = deleteSplitstoreDir(lockedRepo)
 	if err != nil {
-		return xerrors.Errorf("error getting config: %w", err)
-	}
-
-	fullNodeConfig, ok := cfg.(*config.FullNode)
-	if !ok {
-		return xerrors.Errorf("wrong config type: %T", cfg)
-	}
-
-	if fullNodeConfig.Chainstore.EnableSplitstore {
-		log.Info("removing splitstore directory...")
-		err = deleteSplitstoreDir(lockedRepo)
-		if err != nil {
-			return xerrors.Errorf("error removing splitstore directory: %w", err)
-		}
+		return xerrors.Errorf("error removing splitstore directory: %w", err)
 	}
 
 	// Get the base repo path

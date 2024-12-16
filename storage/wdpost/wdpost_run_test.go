@@ -1,4 +1,3 @@
-// stm: #unit
 package wdpost
 
 import (
@@ -16,7 +15,6 @@ import (
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/builtin"
-	miner12 "github.com/filecoin-project/go-state-types/builtin/v12/miner"
 	minertypes "github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
@@ -26,8 +24,9 @@ import (
 	tutils "github.com/filecoin-project/specs-actors/v2/support/testing"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/journal"
@@ -55,7 +54,7 @@ func (m *mockStorageMinerAPI) StateMinerInfo(ctx context.Context, a address.Addr
 }
 
 func (m *mockStorageMinerAPI) StateNetworkVersion(ctx context.Context, key types.TipSetKey) (network.Version, error) {
-	return build.TestNetworkVersion, nil
+	return buildconstants.TestNetworkVersion, nil
 }
 
 func (m *mockStorageMinerAPI) StateGetRandomnessFromTickets(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte, tsk types.TipSetKey) (abi.Randomness, error) {
@@ -74,13 +73,13 @@ func (m *mockStorageMinerAPI) StateMinerPartitions(ctx context.Context, a addres
 	return m.partitions, nil
 }
 
-func (m *mockStorageMinerAPI) StateMinerSectors(ctx context.Context, address address.Address, snos *bitfield.BitField, key types.TipSetKey) ([]*miner12.SectorOnChainInfo, error) {
-	var sis []*miner12.SectorOnChainInfo
+func (m *mockStorageMinerAPI) StateMinerSectors(ctx context.Context, address address.Address, snos *bitfield.BitField, key types.TipSetKey) ([]*miner.SectorOnChainInfo, error) {
+	var sis []*miner.SectorOnChainInfo
 	if snos == nil {
 		panic("unsupported")
 	}
 	_ = snos.ForEach(func(i uint64) error {
-		sis = append(sis, &miner12.SectorOnChainInfo{
+		sis = append(sis, &miner.SectorOnChainInfo{
 			SectorNumber: abi.SectorNumber(i),
 		})
 		return nil
@@ -202,10 +201,6 @@ func generatePartition(sectorCount uint64, recoverySectorCount uint64) api.Parti
 // TestWDPostDoPost verifies that doPost will send the correct number of window
 // PoST messages for a given number of partitions
 func TestWDPostDoPost(t *testing.T) {
-	//stm: @CHAIN_SYNCER_LOAD_GENESIS_001, @CHAIN_SYNCER_FETCH_TIPSET_001,
-	//stm: @CHAIN_SYNCER_START_001, @CHAIN_SYNCER_SYNC_001, @BLOCKCHAIN_BEACON_VALIDATE_BLOCK_VALUES_01
-	//stm: @CHAIN_SYNCER_COLLECT_CHAIN_001, @CHAIN_SYNCER_COLLECT_HEADERS_001, @CHAIN_SYNCER_VALIDATE_TIPSET_001
-	//stm: @CHAIN_SYNCER_NEW_PEER_HEAD_001, @CHAIN_SYNCER_VALIDATE_MESSAGE_META_001, @CHAIN_SYNCER_STOP_001
 	ctx := context.Background()
 	expectedMsgCount := 5
 
@@ -220,7 +215,6 @@ func TestWDPostDoPost(t *testing.T) {
 	// Work out the number of partitions that can be included in a message
 	// without exceeding the message sector limit
 
-	//stm: @BLOCKCHAIN_POLICY_GET_MAX_POST_PARTITIONS_001
 	partitionsPerMsg, err := policy.GetMaxPoStPartitions(network.Version13, proofType)
 	require.NoError(t, err)
 	if partitionsPerMsg > minertypes.AddressedPartitionsMax {
@@ -294,10 +288,6 @@ func TestWDPostDoPost(t *testing.T) {
 // TestWDPostDoPostPartLimitConfig verifies that doPost will send the correct number of window
 // PoST messages for a given number of partitions based on user config
 func TestWDPostDoPostPartLimitConfig(t *testing.T) {
-	//stm: @CHAIN_SYNCER_LOAD_GENESIS_001, @CHAIN_SYNCER_FETCH_TIPSET_001,
-	//stm: @CHAIN_SYNCER_START_001, @CHAIN_SYNCER_SYNC_001, @BLOCKCHAIN_BEACON_VALIDATE_BLOCK_VALUES_01
-	//stm: @CHAIN_SYNCER_COLLECT_CHAIN_001, @CHAIN_SYNCER_COLLECT_HEADERS_001, @CHAIN_SYNCER_VALIDATE_TIPSET_001
-	//stm: @CHAIN_SYNCER_NEW_PEER_HEAD_001, @CHAIN_SYNCER_VALIDATE_MESSAGE_META_001, @CHAIN_SYNCER_STOP_001
 	ctx := context.Background()
 	expectedMsgCount := 8
 
@@ -312,7 +302,6 @@ func TestWDPostDoPostPartLimitConfig(t *testing.T) {
 	// Work out the number of partitions that can be included in a message
 	// without exceeding the message sector limit
 
-	//stm: @BLOCKCHAIN_POLICY_GET_MAX_POST_PARTITIONS_001
 	partitionsPerMsg, err := policy.GetMaxPoStPartitions(network.Version13, proofType)
 	require.NoError(t, err)
 	if partitionsPerMsg > minertypes.AddressedPartitionsMax {
@@ -442,10 +431,6 @@ func TestBatchPartitionsRecoverySectors(t *testing.T) {
 // TestWDPostDeclareRecoveriesPartLimitConfig verifies that declareRecoveries will send the correct number of
 // DeclareFaultsRecovered messages for a given number of partitions based on user config
 func TestWDPostDeclareRecoveriesPartLimitConfig(t *testing.T) {
-	//stm: @CHAIN_SYNCER_LOAD_GENESIS_001, @CHAIN_SYNCER_FETCH_TIPSET_001,
-	//stm: @CHAIN_SYNCER_START_001, @CHAIN_SYNCER_SYNC_001, @BLOCKCHAIN_BEACON_VALIDATE_BLOCK_VALUES_01
-	//stm: @CHAIN_SYNCER_COLLECT_CHAIN_001, @CHAIN_SYNCER_COLLECT_HEADERS_001, @CHAIN_SYNCER_VALIDATE_TIPSET_001
-	//stm: @CHAIN_SYNCER_NEW_PEER_HEAD_001, @CHAIN_SYNCER_VALIDATE_MESSAGE_META_001, @CHAIN_SYNCER_STOP_001
 	ctx := context.Background()
 
 	proofType := abi.RegisteredPoStProof_StackedDrgWindow2KiBV1

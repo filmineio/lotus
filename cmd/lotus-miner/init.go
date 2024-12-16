@@ -38,6 +38,7 @@ import (
 	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/power"
@@ -55,6 +56,7 @@ import (
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/paths"
 	pipeline "github.com/filecoin-project/lotus/storage/pipeline"
+	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
@@ -123,12 +125,11 @@ var initCmd = &cli.Command{
 		&cli.Uint64Flag{
 			Name:  "confidence",
 			Usage: "number of block confirmations to wait for",
-			Value: build.MessageConfidence,
+			Value: buildconstants.MessageConfidence,
 		},
 	},
 	Subcommands: []*cli.Command{
 		restoreCmd,
-		serviceCmd,
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Initializing lotus miner")
@@ -327,21 +328,21 @@ func migratePreSealMeta(ctx context.Context, api v1api.FullNode, metadata string
 		info := &pipeline.SectorInfo{
 			State:        pipeline.Proving,
 			SectorNumber: sector.SectorID,
-			Pieces: []lapi.SectorPiece{
-				{
+			Pieces: []pipeline.SafeSectorPiece{
+				pipeline.SafePiece(lapi.SectorPiece{
 					Piece: abi.PieceInfo{
 						Size:     abi.PaddedPieceSize(meta.SectorSize),
 						PieceCID: commD,
 					},
-					DealInfo: &lapi.PieceDealInfo{
+					DealInfo: &piece.PieceDealInfo{
 						DealID:       dealID,
 						DealProposal: &sector.Deal,
-						DealSchedule: lapi.DealSchedule{
+						DealSchedule: piece.DealSchedule{
 							StartEpoch: sector.Deal.StartEpoch,
 							EndEpoch:   sector.Deal.EndEpoch,
 						},
 					},
-				},
+				}),
 			},
 			CommD:            &commD,
 			CommR:            &commR,
@@ -666,7 +667,7 @@ func createStorageMiner(ctx context.Context, api v1api.FullNode, ssize abi.Secto
 	}
 
 	// make sure the sender account exists on chain
-	_, err = api.StateLookupID(ctx, owner, types.EmptyTSK)
+	_, err = api.StateLookupID(ctx, sender, types.EmptyTSK)
 	if err != nil {
 		return address.Undef, xerrors.Errorf("sender must exist on chain: %w", err)
 	}

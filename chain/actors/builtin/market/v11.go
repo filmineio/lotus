@@ -106,6 +106,14 @@ func (s *state11) Proposals() (DealProposals, error) {
 	return &dealProposals11{proposalArray}, nil
 }
 
+func (s *state11) PendingProposals() (PendingProposals, error) {
+	proposalCidSet, err := adt11.AsSet(s.store, s.State.PendingProposals, builtin.DefaultHamtBitwidth)
+	if err != nil {
+		return nil, err
+	}
+	return &pendingProposals11{proposalCidSet}, nil
+}
+
 func (s *state11) EscrowTable() (BalanceTable, error) {
 	bt, err := adt11.AsBalanceTable(s.store, s.State.EscrowTable)
 	if err != nil {
@@ -124,9 +132,9 @@ func (s *state11) LockedTable() (BalanceTable, error) {
 
 func (s *state11) VerifyDealsForActivation(
 	minerAddr address.Address, deals []abi.DealID, currEpoch, sectorExpiry abi.ChainEpoch,
-) (weight, verifiedWeight abi.DealWeight, err error) {
-	w, vw, _, err := market11.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
-	return w, vw, err
+) (verifiedWeight abi.DealWeight, err error) {
+	_, vw, _, err := market11.ValidateDealsForActivation(&s.State, s.store, deals, minerAddr, sectorExpiry, currEpoch)
+	return vw, err
 }
 
 func (s *state11) NextID() (abi.DealID, error) {
@@ -153,7 +161,7 @@ type dealStates11 struct {
 	adt.Array
 }
 
-func (s *dealStates11) Get(dealID abi.DealID) (*DealState, bool, error) {
+func (s *dealStates11) Get(dealID abi.DealID) (DealState, bool, error) {
 	var deal11 market11.DealState
 	found, err := s.Array.Get(uint64(dealID), &deal11)
 	if err != nil {
@@ -163,7 +171,7 @@ func (s *dealStates11) Get(dealID abi.DealID) (*DealState, bool, error) {
 		return nil, false, nil
 	}
 	deal := fromV11DealState(deal11)
-	return &deal, true, nil
+	return deal, true, nil
 }
 
 func (s *dealStates11) ForEach(cb func(dealID abi.DealID, ds DealState) error) error {
@@ -173,30 +181,63 @@ func (s *dealStates11) ForEach(cb func(dealID abi.DealID, ds DealState) error) e
 	})
 }
 
-func (s *dealStates11) decode(val *cbg.Deferred) (*DealState, error) {
+func (s *dealStates11) decode(val *cbg.Deferred) (DealState, error) {
 	var ds11 market11.DealState
 	if err := ds11.UnmarshalCBOR(bytes.NewReader(val.Raw)); err != nil {
 		return nil, err
 	}
 	ds := fromV11DealState(ds11)
-	return &ds, nil
+	return ds, nil
 }
 
 func (s *dealStates11) array() adt.Array {
 	return s.Array
 }
 
-func fromV11DealState(v11 market11.DealState) DealState {
-	ret := DealState{
-		SectorStartEpoch: v11.SectorStartEpoch,
-		LastUpdatedEpoch: v11.LastUpdatedEpoch,
-		SlashEpoch:       v11.SlashEpoch,
-		VerifiedClaim:    0,
+type dealStateV11 struct {
+	ds11 market11.DealState
+}
+
+func (d dealStateV11) SectorNumber() abi.SectorNumber {
+
+	return 0
+
+}
+
+func (d dealStateV11) SectorStartEpoch() abi.ChainEpoch {
+	return d.ds11.SectorStartEpoch
+}
+
+func (d dealStateV11) LastUpdatedEpoch() abi.ChainEpoch {
+	return d.ds11.LastUpdatedEpoch
+}
+
+func (d dealStateV11) SlashEpoch() abi.ChainEpoch {
+	return d.ds11.SlashEpoch
+}
+
+func (d dealStateV11) Equals(other DealState) bool {
+	if ov11, ok := other.(dealStateV11); ok {
+		return d.ds11 == ov11.ds11
 	}
 
-	ret.VerifiedClaim = verifregtypes.AllocationId(v11.VerifiedClaim)
+	if d.SectorStartEpoch() != other.SectorStartEpoch() {
+		return false
+	}
+	if d.LastUpdatedEpoch() != other.LastUpdatedEpoch() {
+		return false
+	}
+	if d.SlashEpoch() != other.SlashEpoch() {
+		return false
+	}
 
-	return ret
+	return true
+}
+
+var _ DealState = (*dealStateV11)(nil)
+
+func fromV11DealState(v11 market11.DealState) DealState {
+	return dealStateV11{v11}
 }
 
 type dealProposals11 struct {
@@ -249,6 +290,14 @@ func (s *dealProposals11) decode(val *cbg.Deferred) (*DealProposal, error) {
 
 func (s *dealProposals11) array() adt.Array {
 	return s.Array
+}
+
+type pendingProposals11 struct {
+	*adt11.Set
+}
+
+func (s *pendingProposals11) Has(proposalCid cid.Cid) (bool, error) {
+	return s.Set.Has(abi.CidKey(proposalCid))
 }
 
 func fromV11DealProposal(v11 market11.DealProposal) (DealProposal, error) {

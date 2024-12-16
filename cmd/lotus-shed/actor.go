@@ -8,6 +8,8 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -20,7 +22,7 @@ import (
 	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -39,6 +41,176 @@ var actorCmd = &cli.Command{
 		actorGetMethodNum,
 		actorProposeChangeBeneficiary,
 		actorConfirmChangeBeneficiary,
+		actorSetAddrsCmd,
+		actorSetPeeridCmd,
+	},
+}
+
+var actorSetAddrsCmd = &cli.Command{
+	Name:      "set-p2p-addrs",
+	Usage:     "set addresses that your miner can be publicly dialed on",
+	ArgsUsage: "<multiaddrs>",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:     "actor",
+			Usage:    "specify the address of miner actor",
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:  "from",
+			Usage: "optionally specify the account to send the message from",
+		},
+		&cli.BoolFlag{
+			Name:  "unset",
+			Usage: "unset address",
+			Value: false,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args().Slice()
+		unset := cctx.Bool("unset")
+		if len(args) == 0 && !unset {
+			return cli.ShowSubcommandHelp(cctx)
+		}
+		if len(args) > 0 && unset {
+			return fmt.Errorf("unset can only be used with no arguments")
+		}
+
+		var maddr address.Address
+		maddr, err := address.NewFromString(cctx.String("actor"))
+		if err != nil {
+			return fmt.Errorf("parsing address %s: %w", cctx.String("actor"), err)
+		}
+
+		api, acloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		var addrs []abi.Multiaddrs
+		for _, a := range args {
+			maddr, err := ma.NewMultiaddr(a)
+			if err != nil {
+				return fmt.Errorf("failed to parse %q as a multiaddr: %w", a, err)
+			}
+
+			maddrNop2p, strip := ma.SplitFunc(maddr, func(c ma.Component) bool {
+				return c.Protocol().Code == ma.P_P2P
+			})
+
+			if strip != nil {
+				fmt.Println("Stripping peerid ", strip, " from ", maddr)
+			}
+			addrs = append(addrs, maddrNop2p.Bytes())
+		}
+
+		minfo, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		fromAddr := minfo.Worker
+		if from := cctx.String("from"); from != "" {
+			addr, err := address.NewFromString(from)
+			if err != nil {
+				return err
+			}
+
+			fromAddr = addr
+		}
+
+		fromId, err := api.StateLookupID(ctx, fromAddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		if !isController(minfo, fromId) {
+			return xerrors.Errorf("sender isn't a controller of miner: %s", fromId)
+		}
+
+		params, err := actors.SerializeParams(&miner.ChangeMultiaddrsParams{NewMultiaddrs: addrs})
+		if err != nil {
+			return err
+		}
+
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+			To:     maddr,
+			From:   fromId,
+			Value:  types.NewInt(0),
+			Method: builtin.MethodsMiner.ChangeMultiaddrs,
+			Params: params,
+		}, nil)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Requested multiaddrs change in message %s\n", smsg.Cid())
+		return nil
+
+	},
+}
+
+var actorSetPeeridCmd = &cli.Command{
+	Name:      "set-peer-id",
+	Usage:     "set the peer id of your miner",
+	ArgsUsage: "<peer id>",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:     "actor",
+			Usage:    "specify the address of miner actor",
+			Required: true,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, acloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		maddr, err := address.NewFromString(cctx.String("actor"))
+		if err != nil {
+			return fmt.Errorf("parsing address %s: %w", cctx.String("actor"), err)
+		}
+
+		if cctx.NArg() != 1 {
+			return lcli.IncorrectNumArgs(cctx)
+		}
+
+		pid, err := peer.Decode(cctx.Args().Get(0))
+		if err != nil {
+			return fmt.Errorf("failed to parse input as a peerId: %w", err)
+		}
+
+		minfo, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		params, err := actors.SerializeParams(&miner.ChangePeerIDParams{NewID: abi.PeerID(pid)})
+		if err != nil {
+			return err
+		}
+
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+			To:     maddr,
+			From:   minfo.Worker,
+			Value:  types.NewInt(0),
+			Method: builtin.MethodsMiner.ChangePeerID,
+			Params: params,
+		}, nil)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Requested peerid change in message %s\n", smsg.Cid())
+		return nil
+
 	},
 }
 
@@ -54,7 +226,7 @@ var actorWithdrawCmd = &cli.Command{
 		&cli.IntFlag{
 			Name:  "confidence",
 			Usage: "number of block confirmations to wait for",
-			Value: int(build.MessageConfidence),
+			Value: int(buildconstants.MessageConfidence),
 		},
 		&cli.BoolFlag{
 			Name:  "beneficiary",
@@ -279,7 +451,7 @@ var actorSetOwnerCmd = &cli.Command{
 		fmt.Println("Message CID:", smsg.Cid())
 
 		// wait for it to get mined into a block
-		wait, err := nodeAPI.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+		wait, err := nodeAPI.StateWaitMsg(ctx, smsg.Cid(), buildconstants.MessageConfidence)
 		if err != nil {
 			return err
 		}
@@ -547,12 +719,12 @@ var actorControlSet = &cli.Command{
 				return err
 			}
 
-			fmt.Fprintln(cctx.App.Writer, hex.EncodeToString(msgBytes))
+			_, _ = fmt.Fprintln(cctx.App.Writer, hex.EncodeToString(msgBytes))
 			return nil
 		}
 
 		if !cctx.Bool("really-do-it") {
-			fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
+			_, _ = fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
 			return nil
 		}
 
@@ -588,7 +760,7 @@ var actorProposeChangeWorker = &cli.Command{
 		}
 
 		if !cctx.Bool("really-do-it") {
-			fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
+			_, _ = fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
 			return nil
 		}
 
@@ -668,17 +840,17 @@ var actorProposeChangeWorker = &cli.Command{
 			return xerrors.Errorf("mpool push: %w", err)
 		}
 
-		fmt.Fprintln(cctx.App.Writer, "Propose Message CID:", smsg.Cid())
+		_, _ = fmt.Fprintln(cctx.App.Writer, "Propose Message CID:", smsg.Cid())
 
 		// wait for it to get mined into a block
-		wait, err := nodeAPI.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+		wait, err := nodeAPI.StateWaitMsg(ctx, smsg.Cid(), buildconstants.MessageConfidence)
 		if err != nil {
 			return err
 		}
 
 		// check it executed successfully
 		if wait.Receipt.ExitCode.IsError() {
-			fmt.Fprintln(cctx.App.Writer, "Propose worker change failed!")
+			_, _ = fmt.Fprintln(cctx.App.Writer, "Propose worker change failed!")
 			return err
 		}
 
@@ -687,11 +859,11 @@ var actorProposeChangeWorker = &cli.Command{
 			return err
 		}
 		if mi.NewWorker != newAddr {
-			return fmt.Errorf("Proposed worker address change not reflected on chain: expected '%s', found '%s'", na, mi.NewWorker)
+			return fmt.Errorf("proposed worker address change not reflected on chain: expected '%s', found '%s'", na, mi.NewWorker)
 		}
 
-		fmt.Fprintf(cctx.App.Writer, "Worker key change to %s successfully proposed.\n", na)
-		fmt.Fprintf(cctx.App.Writer, "Call 'confirm-change-worker' at or after height %d to complete.\n", mi.WorkerChangeEpoch)
+		_, _ = fmt.Fprintf(cctx.App.Writer, "Worker key change to %s successfully proposed.\n", na)
+		_, _ = fmt.Fprintf(cctx.App.Writer, "Call 'confirm-change-worker' at or after height %d to complete.\n", mi.WorkerChangeEpoch)
 
 		return nil
 	},
@@ -718,7 +890,7 @@ var actorConfirmChangeWorker = &cli.Command{
 		}
 
 		if !cctx.Bool("really-do-it") {
-			fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
+			_, _ = fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
 			return nil
 		}
 
@@ -789,17 +961,17 @@ var actorConfirmChangeWorker = &cli.Command{
 			return xerrors.Errorf("mpool push: %w", err)
 		}
 
-		fmt.Fprintln(cctx.App.Writer, "Confirm Message CID:", smsg.Cid())
+		_, _ = fmt.Fprintln(cctx.App.Writer, "Confirm Message CID:", smsg.Cid())
 
 		// wait for it to get mined into a block
-		wait, err := nodeAPI.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+		wait, err := nodeAPI.StateWaitMsg(ctx, smsg.Cid(), buildconstants.MessageConfidence)
 		if err != nil {
 			return err
 		}
 
 		// check it executed successfully
 		if wait.Receipt.ExitCode.IsError() {
-			fmt.Fprintln(cctx.App.Writer, "Worker change failed!")
+			_, _ = fmt.Fprintln(cctx.App.Writer, "Worker change failed!")
 			return err
 		}
 
@@ -808,7 +980,7 @@ var actorConfirmChangeWorker = &cli.Command{
 			return err
 		}
 		if mi.Worker != newAddr {
-			return fmt.Errorf("Confirmed worker address change not reflected on chain: expected '%s', found '%s'", newAddr, mi.Worker)
+			return fmt.Errorf("confirmed worker address change not reflected on chain: expected '%s', found '%s'", newAddr, mi.Worker)
 		}
 
 		return nil
@@ -940,7 +1112,7 @@ var actorProposeChangeBeneficiary = &cli.Command{
 		fmt.Println("Propose Message CID:", smsg.Cid())
 
 		// wait for it to get mined into a block
-		wait, err := api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+		wait, err := api.StateWaitMsg(ctx, smsg.Cid(), buildconstants.MessageConfidence)
 		if err != nil {
 			return xerrors.Errorf("waiting for message to be included in block: %w", err)
 		}
@@ -1063,7 +1235,7 @@ var actorConfirmChangeBeneficiary = &cli.Command{
 		fmt.Println("Confirm Message CID:", smsg.Cid())
 
 		// wait for it to get mined into a block
-		wait, err := api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+		wait, err := api.StateWaitMsg(ctx, smsg.Cid(), buildconstants.MessageConfidence)
 		if err != nil {
 			return xerrors.Errorf("waiting for message to be included in block: %w", err)
 		}
@@ -1086,4 +1258,18 @@ var actorConfirmChangeBeneficiary = &cli.Command{
 
 		return nil
 	},
+}
+
+func isController(mi api.MinerInfo, addr address.Address) bool {
+	if addr == mi.Owner || addr == mi.Worker {
+		return true
+	}
+
+	for _, ca := range mi.ControlAddresses {
+		if addr == ca {
+			return true
+		}
+	}
+
+	return false
 }

@@ -20,7 +20,7 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/metrics"
 )
@@ -39,11 +39,11 @@ var (
 	// === :: cold (already archived)
 	// ≡≡≡ :: to be archived in this compaction
 	// --- :: hot
-	CompactionThreshold = 5 * build.Finality
+	CompactionThreshold = 5 * policy.ChainFinality
 
 	// CompactionBoundary is the number of epochs from the current epoch at which
 	// we will walk the chain for live objects.
-	CompactionBoundary = 4 * build.Finality
+	CompactionBoundary = 4 * policy.ChainFinality
 
 	// SyncGapTime is the time delay from a tipset's min timestamp before we decide
 	// there is a sync gap
@@ -109,16 +109,13 @@ func (s *SplitStore) HeadChange(_, apply []*types.TipSet) error {
 		// TODO: ok to use hysteresis with no transitions between 30s and 1m?
 		if time.Since(timestamp) < SyncWaitTime {
 			/* Chain in sync */
-			if atomic.CompareAndSwapInt32(&s.outOfSync, 0, 0) {
-				// already in sync, no signaling necessary
-			} else {
+			if !atomic.CompareAndSwapInt32(&s.outOfSync, 0, 0) {
 				// transition from out of sync to in sync
 				s.chainSyncMx.Lock()
 				s.chainSyncFinished = true
 				s.chainSyncCond.Broadcast()
 				s.chainSyncMx.Unlock()
-			}
-
+			} // else already in sync, no signaling necessary
 		}
 		// 2. protect the new tipset(s)
 		s.protectTipSets(apply)
@@ -554,7 +551,7 @@ func (s *SplitStore) doCompact(curTs *types.TipSet) error {
 	boundaryEpoch := currentEpoch - CompactionBoundary
 
 	var inclMsgsEpoch abi.ChainEpoch
-	inclMsgsRange := abi.ChainEpoch(s.cfg.HotStoreMessageRetention) * build.Finality
+	inclMsgsRange := abi.ChainEpoch(s.cfg.HotStoreMessageRetention) * policy.ChainFinality
 	if inclMsgsRange < boundaryEpoch {
 		inclMsgsEpoch = boundaryEpoch - inclMsgsRange
 	}

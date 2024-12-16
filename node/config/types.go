@@ -1,8 +1,6 @@
 package config
 
 import (
-	"github.com/ipfs/go-cid"
-
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -15,19 +13,19 @@ type Common struct {
 	API     API
 	Backup  Backup
 	Logging Logging
-	Libp2p  Libp2p
-	Pubsub  Pubsub
 }
 
 // FullNode is a full node config
 type FullNode struct {
 	Common
-	Client        Client
+	Libp2p        Libp2p
+	Pubsub        Pubsub
 	Wallet        Wallet
 	Fees          FeeConfig
 	Chainstore    Chainstore
 	Fevm          FevmConfig
-	Index         IndexConfig
+	Events        EventsConfig
+	ChainIndexer  ChainIndexerConfig
 	FaultReporter FaultReporterConfig
 }
 
@@ -52,27 +50,14 @@ type Logging struct {
 type StorageMiner struct {
 	Common
 
-	Subsystems    MinerSubsystemConfig
-	Dealmaking    DealmakingConfig
-	IndexProvider IndexProviderConfig
-	Proving       ProvingConfig
-	Sealing       SealingConfig
-	Storage       SealerConfig
-	Fees          MinerFeeConfig
-	Addresses     MinerAddressConfig
-	DAGStore      DAGStoreConfig
-
-	HarmonyDB HarmonyDB
-}
-
-type LotusProviderConfig struct {
-	Subsystems ProviderSubsystemsConfig
-
-	Fees      LotusProviderFees
-	Addresses LotusProviderAddresses
-	Proving   ProvingConfig
-	Journal   JournalConfig
-	Apis      ApisConfig
+	Subsystems MinerSubsystemConfig
+	Dealmaking DealmakingConfig
+	Proving    ProvingConfig
+	Sealing    SealingConfig
+	Storage    SealerConfig
+	Fees       MinerFeeConfig
+	Addresses  MinerAddressConfig
+	HarmonyDB  HarmonyDB
 }
 
 type ApisConfig struct {
@@ -90,61 +75,10 @@ type JournalConfig struct {
 	DisabledEvents string
 }
 
-type ProviderSubsystemsConfig struct {
-	EnableWindowPost    bool
-	WindowPostMaxTasks  int
-	EnableWinningPost   bool
-	WinningPostMaxTasks int
-
-	EnableWebGui bool
-	// The address that should listen for Web GUI requests.
-	GuiAddress string
-}
-
-type DAGStoreConfig struct {
-	// Path to the dagstore root directory. This directory contains three
-	// subdirectories, which can be symlinked to alternative locations if
-	// need be:
-	//  - ./transients: caches unsealed deals that have been fetched from the
-	//    storage subsystem for serving retrievals.
-	//  - ./indices: stores shard indices.
-	//  - ./datastore: holds the KV store tracking the state of every shard
-	//    known to the DAG store.
-	// Default value: <LOTUS_MARKETS_PATH>/dagstore (split deployment) or
-	// <LOTUS_MINER_PATH>/dagstore (monolith deployment)
-	RootDir string
-
-	// The maximum amount of indexing jobs that can run simultaneously.
-	// 0 means unlimited.
-	// Default value: 5.
-	MaxConcurrentIndex int
-
-	// The maximum amount of unsealed deals that can be fetched simultaneously
-	// from the storage subsystem. 0 means unlimited.
-	// Default value: 0 (unlimited).
-	MaxConcurrentReadyFetches int
-
-	// The maximum amount of unseals that can be processed simultaneously
-	// from the storage subsystem. 0 means unlimited.
-	// Default value: 0 (unlimited).
-	MaxConcurrentUnseals int
-
-	// The maximum number of simultaneous inflight API calls to the storage
-	// subsystem.
-	// Default value: 100.
-	MaxConcurrencyStorageCalls int
-
-	// The time between calls to periodic dagstore GC, in time.Duration string
-	// representation, e.g. 1m, 5m, 1h.
-	// Default value: 1 minute.
-	GCInterval Duration
-}
-
 type MinerSubsystemConfig struct {
 	EnableMining        bool
 	EnableSealing       bool
 	EnableSectorStorage bool
-	EnableMarkets       bool
 
 	// When enabled, the sector index will reside in an external database
 	// as opposed to the local KV store in the miner process
@@ -175,111 +109,8 @@ type MinerSubsystemConfig struct {
 }
 
 type DealmakingConfig struct {
-	// When enabled, the miner can accept online deals
-	ConsiderOnlineStorageDeals bool
-	// When enabled, the miner can accept offline deals
-	ConsiderOfflineStorageDeals bool
-	// When enabled, the miner can accept retrieval deals
-	ConsiderOnlineRetrievalDeals bool
-	// When enabled, the miner can accept offline retrieval deals
-	ConsiderOfflineRetrievalDeals bool
-	// When enabled, the miner can accept verified deals
-	ConsiderVerifiedStorageDeals bool
-	// When enabled, the miner can accept unverified deals
-	ConsiderUnverifiedStorageDeals bool
-	// A list of Data CIDs to reject when making deals
-	PieceCidBlocklist []cid.Cid
-	// Maximum expected amount of time getting the deal into a sealed sector will take
-	// This includes the time the deal will need to get transferred and published
-	// before being assigned to a sector
-	ExpectedSealDuration Duration
-	// Maximum amount of time proposed deal StartEpoch can be in future
-	MaxDealStartDelay Duration
-	// When a deal is ready to publish, the amount of time to wait for more
-	// deals to be ready to publish before publishing them all as a batch
-	PublishMsgPeriod Duration
-	// The maximum number of deals to include in a single PublishStorageDeals
-	// message
-	MaxDealsPerPublishMsg uint64
-	// The maximum collateral that the provider will put up against a deal,
-	// as a multiplier of the minimum collateral bound
-	MaxProviderCollateralMultiplier uint64
-	// The maximum allowed disk usage size in bytes of staging deals not yet
-	// passed to the sealing node by the markets service. 0 is unlimited.
-	MaxStagingDealsBytes int64
-	// The maximum number of parallel online data transfers for storage deals
-	SimultaneousTransfersForStorage uint64
-	// The maximum number of simultaneous data transfers from any single client
-	// for storage deals.
-	// Unset by default (0), and values higher than SimultaneousTransfersForStorage
-	// will have no effect; i.e. the total number of simultaneous data transfers
-	// across all storage clients is bound by SimultaneousTransfersForStorage
-	// regardless of this number.
-	SimultaneousTransfersForStoragePerClient uint64
-	// The maximum number of parallel online data transfers for retrieval deals
-	SimultaneousTransfersForRetrieval uint64
 	// Minimum start epoch buffer to give time for sealing of sector with deal.
 	StartEpochSealingBuffer uint64
-
-	// A command used for fine-grained evaluation of storage deals
-	// see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details
-	Filter string
-	// A command used for fine-grained evaluation of retrieval deals
-	// see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details
-	RetrievalFilter string
-
-	RetrievalPricing *RetrievalPricing
-}
-
-type IndexProviderConfig struct {
-	// Enable set whether to enable indexing announcement to the network and expose endpoints that
-	// allow indexer nodes to process announcements. Enabled by default.
-	Enable bool
-
-	// EntriesCacheCapacity sets the maximum capacity to use for caching the indexing advertisement
-	// entries. Defaults to 1024 if not specified. The cache is evicted using LRU policy. The
-	// maximum storage used by the cache is a factor of EntriesCacheCapacity, EntriesChunkSize and
-	// the length of multihashes being advertised. For example, advertising 128-bit long multihashes
-	// with the default EntriesCacheCapacity, and EntriesChunkSize means the cache size can grow to
-	// 256MiB when full.
-	EntriesCacheCapacity int
-
-	// EntriesChunkSize sets the maximum number of multihashes to include in a single entries chunk.
-	// Defaults to 16384 if not specified. Note that chunks are chained together for indexing
-	// advertisements that include more multihashes than the configured EntriesChunkSize.
-	EntriesChunkSize int
-
-	// TopicName sets the topic name on which the changes to the advertised content are announced.
-	// If not explicitly specified, the topic name is automatically inferred from the network name
-	// in following format: '/indexer/ingest/<network-name>'
-	// Defaults to empty, which implies the topic name is inferred from network name.
-	TopicName string
-
-	// PurgeCacheOnStart sets whether to clear any cached entries chunks when the provider engine
-	// starts. By default, the cache is rehydrated from previously cached entries stored in
-	// datastore if any is present.
-	PurgeCacheOnStart bool
-}
-
-type RetrievalPricing struct {
-	Strategy string // possible values: "default", "external"
-
-	Default  *RetrievalPricingDefault
-	External *RetrievalPricingExternal
-}
-
-type RetrievalPricingExternal struct {
-	// Path of the external script that will be run to price a retrieval deal.
-	// This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "external".
-	Path string
-}
-
-type RetrievalPricingDefault struct {
-	// VerifiedDealsFreeTransfer configures zero fees for data transfer for a retrieval deal
-	// of a payloadCid that belongs to a verified storage deal.
-	// This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "default".
-	// default value is true
-	VerifiedDealsFreeTransfer bool
 }
 
 type ProvingConfig struct {
@@ -490,6 +321,15 @@ type SealingConfig struct {
 
 	// UseSyntheticPoRep, when set to true, will reduce the amount of cache data held on disk after the completion of PreCommit 2 to 11GiB.
 	UseSyntheticPoRep bool
+
+	// Whether to abort if any sector activation in a batch fails (newly sealed sectors, only with ProveCommitSectors3).
+	RequireActivationSuccess bool
+	// Whether to abort if any piece activation notification returns a non-zero exit code (newly sealed sectors, only with ProveCommitSectors3).
+	RequireActivationSuccessUpdate bool
+	// Whether to abort if any sector activation in a batch fails (updating sectors, only with ProveReplicaUpdates3).
+	RequireNotificationSuccess bool
+	// Whether to abort if any piece activation notification returns a non-zero exit code (updating sectors, only with ProveReplicaUpdates3).
+	RequireNotificationSuccessUpdate bool
 }
 
 type SealerConfig struct {
@@ -555,20 +395,6 @@ type MinerFeeConfig struct {
 	MaximizeWindowPoStFeeCap bool
 }
 
-type LotusProviderFees struct {
-	DefaultMaxFee      types.FIL
-	MaxPreCommitGasFee types.FIL
-	MaxCommitGasFee    types.FIL
-
-	// maxBatchFee = maxBase + maxPerSector * nSectors
-	MaxPreCommitBatchGasFee BatchFeeConfig
-	MaxCommitBatchGasFee    BatchFeeConfig
-
-	MaxTerminateGasFee types.FIL
-	// WindowPoSt is a high-value operation, so the default fee should be high.
-	MaxWindowPoStGasFee types.FIL
-	MaxPublishDealsFee  types.FIL
-}
 type MinerAddressConfig struct {
 	// Addresses to send PreCommit messages from
 	PreCommitControl []string
@@ -585,26 +411,6 @@ type MinerAddressConfig struct {
 	// A control address that doesn't have enough funds will still be chosen
 	// over the worker address if this flag is set.
 	DisableWorkerFallback bool
-}
-
-type LotusProviderAddresses struct {
-	// Addresses to send PreCommit messages from
-	PreCommitControl []string
-	// Addresses to send Commit messages from
-	CommitControl    []string
-	TerminateControl []string
-
-	// DisableOwnerFallback disables usage of the owner address for messages
-	// sent automatically
-	DisableOwnerFallback bool
-	// DisableWorkerFallback disables usage of the worker address for messages
-	// sent automatically, if control addresses are configured.
-	// A control address that doesn't have enough funds will still be chosen
-	// over the worker address if this flag is set.
-	DisableWorkerFallback bool
-
-	// MinerAddresses are the addresses of the miner actors to use for sending messages
-	MinerAddresses []string
 }
 
 // API contains configs for API endpoint
@@ -719,24 +525,7 @@ type Splitstore struct {
 	HotstoreMaxSpaceSafetyBuffer uint64
 }
 
-// // Full Node
-type Client struct {
-	UseIpfs             bool
-	IpfsOnlineMode      bool
-	IpfsMAddr           string
-	IpfsUseForRetrieval bool
-	// The maximum number of simultaneous data transfers between the client
-	// and storage providers for storage deals
-	SimultaneousTransfersForStorage uint64
-	// The maximum number of simultaneous data transfers between the client
-	// and storage providers for retrieval deals
-	SimultaneousTransfersForRetrieval uint64
-
-	// Require that retrievals perform no on-chain operations. Paid retrievals
-	// without existing payment channels with available funds will fail instead
-	// of automatically performing on-chain operations.
-	OffChainRetrieval bool
-}
+// Full Node
 
 type Wallet struct {
 	RemoteBackend string
@@ -749,33 +538,38 @@ type FeeConfig struct {
 }
 
 type FevmConfig struct {
-	// EnableEthRPC enables eth_ rpc, and enables storing a mapping of eth transaction hashes to filecoin message Cids.
-	// This will also enable the RealTimeFilterAPI and HistoricFilterAPI by default, but they can be disabled by config options above.
+	// EnableEthRPC enables eth_ RPC methods.
+	// Note: Setting this to true will also require that ChainIndexer is enabled, otherwise it will cause an error at startup.
+	// Set EnableIndexer in the ChainIndexer section of the config to true to enable the ChainIndexer.
 	EnableEthRPC bool
 
-	// EthTxHashMappingLifetimeDays the transaction hash lookup database will delete mappings that have been stored for more than x days
-	// Set to 0 to keep all mappings
-	EthTxHashMappingLifetimeDays int
+	// EthTraceFilterMaxResults sets the maximum results returned per request by trace_filter
+	EthTraceFilterMaxResults uint64
 
-	Events Events
+	// EthBlkCacheSize specifies the size of the cache used for caching Ethereum blocks.
+	// This cache enhances the performance of the eth_getBlockByHash RPC call by minimizing the need to access chain state for
+	// recently requested blocks that are already cached.
+	// The default size of the cache is 500 blocks.
+	// Note: Setting this value to 0 disables the cache.
+	EthBlkCacheSize int
 }
 
-type Events struct {
-	// EnableEthRPC enables APIs that
-	// DisableRealTimeFilterAPI will disable the RealTimeFilterAPI that can create and query filters for actor events as they are emitted.
-	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
-	DisableRealTimeFilterAPI bool
-
-	// DisableHistoricFilterAPI will disable the HistoricFilterAPI that can create and query filters for actor events
-	// that occurred in the past. HistoricFilterAPI maintains a queryable index of events.
-	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
-	DisableHistoricFilterAPI bool
+type EventsConfig struct {
+	// EnableActorEventsAPI enables the Actor events API that enables clients to consume events
+	// emitted by (smart contracts + built-in Actors).
+	// Note: Setting this to true will also require that ChainIndexer is enabled, otherwise it will cause an error at startup.
+	// Set EnableIndexer in the ChainIndexer section of the config to true to enable the ChainIndexer.
+	EnableActorEventsAPI bool
 
 	// FilterTTL specifies the time to live for actor event filters. Filters that haven't been accessed longer than
-	// this time become eligible for automatic deletion.
+	// this time become eligible for automatic deletion. Filters consume resources, so if they are unused they
+	// should not be retained.
 	FilterTTL Duration
 
 	// MaxFilters specifies the maximum number of filters that may exist at any one time.
+	// Multi-tenant environments may want to increase this value to serve a larger number of clients. If using
+	// lotus-gateway, this global limit can be coupled with --eth-max-filters-per-conn which limits the number
+	// of filters per connection.
 	MaxFilters int
 
 	// MaxFilterResults specifies the maximum number of results that can be accumulated by an actor event filter.
@@ -784,23 +578,56 @@ type Events struct {
 	// MaxFilterHeightRange specifies the maximum range of heights that can be used in a filter (to avoid querying
 	// the entire chain)
 	MaxFilterHeightRange uint64
-
-	// DatabasePath is the full path to a sqlite database that will be used to index actor events to
-	// support the historic filter APIs. If the database does not exist it will be created. The directory containing
-	// the database must already exist and be writeable. If a relative path is provided here, sqlite treats it as
-	// relative to the CWD (current working directory).
-	DatabasePath string
-
-	// Others, not implemented yet:
-	// Set a limit on the number of active websocket subscriptions (may be zero)
-	// Set a timeout for subscription clients
-	// Set upper bound on index size
 }
 
-type IndexConfig struct {
-	// EXPERIMENTAL FEATURE. USE WITH CAUTION
-	// EnableMsgIndex enables indexing of messages on chain.
-	EnableMsgIndex bool
+type ChainIndexerConfig struct {
+	// EnableIndexer controls whether the chain indexer is active.
+	// The chain indexer is responsible for indexing tipsets, messages, and events from the chain state.
+	// It is a crucial component for optimizing Lotus RPC response times.
+	//
+	// Default: false (indexer is disabled)
+	//
+	// Setting this to true will enable the indexer, which will significantly improve RPC performance.
+	// It is strongly recommended to keep this set to true if you are an RPC provider.
+	//
+	// If EnableEthRPC or EnableActorEventsAPI are set to true, the ChainIndexer must be enabled using
+	// this option to avoid errors at startup.
+	EnableIndexer bool
+
+	// GCRetentionEpochs specifies the number of epochs for which data is retained in the Indexer.
+	// The garbage collection (GC) process removes data older than this retention period.
+	// Setting this to 0 disables GC, preserving all historical data indefinitely.
+	//
+	// If set, the minimum value must be greater than builtin.EpochsInDay (i.e. "2880" epochs for mainnet).
+	// This ensures a reasonable retention period for the indexed data.
+	//
+	// Default: 0 (GC disabled)
+	GCRetentionEpochs int64
+
+	// ReconcileEmptyIndex determines whether to reconcile the index with the chain state
+	// during startup when the index is empty.
+	//
+	// When set to true:
+	// - On startup, if the index is empty, the indexer will index the available
+	//   chain state on the node albeit within the MaxReconcileTipsets limit.
+	//
+	// When set to false:
+	// - The indexer will not automatically re-index the chain state on startup if the index is empty.
+	//
+	// Default: false
+	//
+	// Note: The number of tipsets reconciled (i.e. indexed) during this process can be
+	// controlled using the MaxReconcileTipsets option.
+	ReconcileEmptyIndex bool
+
+	// MaxReconcileTipsets limits the number of tipsets to reconcile with the chain during startup.
+	// It represents the maximum number of tipsets to index from the chain state that are absent in the index.
+	//
+	// Default: 3 * epochsPerDay (approximately 3 days of chain history)
+	//
+	// Note: Setting this value too low may result in incomplete indexing, while setting it too high
+	// may increase startup time.
+	MaxReconcileTipsets uint64
 }
 
 type HarmonyDB struct {
@@ -820,6 +647,7 @@ type HarmonyDB struct {
 	// The port to find Yugabyte. Blank for default.
 	Port string
 }
+
 type FaultReporterConfig struct {
 	// EnableConsensusFaultReporter controls whether the node will monitor and
 	// report consensus faults. When enabled, the node will watch for malicious

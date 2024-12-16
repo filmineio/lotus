@@ -8,7 +8,7 @@ import (
 	dchain "github.com/drand/drand/chain"
 	dclient "github.com/drand/drand/client"
 	hclient "github.com/drand/drand/client/http"
-	"github.com/drand/drand/common/scheme"
+	dcrypto "github.com/drand/drand/crypto"
 	dlog "github.com/drand/drand/log"
 	gclient "github.com/drand/drand/lp2p/client"
 	"github.com/drand/kyber"
@@ -22,6 +22,7 @@ import (
 	"github.com/filecoin-project/go-state-types/network"
 
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
@@ -35,9 +36,10 @@ var log = logging.Logger("drand")
 // We connect to drand peers via their public HTTP endpoints. The peers are
 // enumerated in the drandServers variable.
 //
-// The root trust for the Drand chain is configured from build.DrandChain.
+// The root trust for the Drand chain is configured from buildconstants.DrandConfigs
 type DrandBeacon struct {
-	client dclient.Client
+	isChained bool
+	client    dclient.Client
 
 	pubkey kyber.Point
 
@@ -47,8 +49,16 @@ type DrandBeacon struct {
 	drandGenTime uint64
 	filGenTime   uint64
 	filRoundTime uint64
+	scheme       *dcrypto.Scheme
 
 	localCache *lru.Cache[uint64, *types.BeaconEntry]
+}
+
+// IsChained tells us whether this particular beacon operates in "chained mode". Prior to Drand
+// quicknet, beacons form a chain. After the introduction of quicknet, they do not, so we need to
+// change how we interact with beacon entries. (See FIP-0063)
+func (db *DrandBeacon) IsChained() bool {
+	return db.isChained
 }
 
 // DrandHTTPClient interface overrides the user agent used by drand
@@ -68,6 +78,10 @@ func (l *logger) Named(s string) dlog.Logger {
 	return &logger{l.SugaredLogger.Named(s)}
 }
 
+func (l *logger) AddCallerSkip(skip int) dlog.Logger {
+	return &logger{l.SugaredLogger.With(zap.AddCallerSkip(skip))}
+}
+
 func NewDrandBeacon(genesisTs, interval uint64, ps *pubsub.PubSub, config dtypes.DrandConfig) (*DrandBeacon, error) {
 	if genesisTs == 0 {
 		panic("what are you doing this cant be zero")
@@ -84,7 +98,7 @@ func NewDrandBeacon(genesisTs, interval uint64, ps *pubsub.PubSub, config dtypes
 		if err != nil {
 			return nil, xerrors.Errorf("could not create http drand client: %w", err)
 		}
-		hc.(DrandHTTPClient).SetUserAgent("drand-client-lotus/" + build.BuildVersion)
+		hc.(DrandHTTPClient).SetUserAgent("drand-client-lotus/" + build.NodeBuildVersion)
 		clients = append(clients, hc)
 
 	}
@@ -112,10 +126,16 @@ func NewDrandBeacon(genesisTs, interval uint64, ps *pubsub.PubSub, config dtypes
 	}
 
 	db := &DrandBeacon{
+		isChained:  config.IsChained,
 		client:     client,
 		localCache: lc,
 	}
 
+	sch, err := dcrypto.GetSchemeByIDWithDefault(drandChain.Scheme)
+	if err != nil {
+		return nil, err
+	}
+	db.scheme = sch
 	db.pubkey = drandChain.PublicKey
 	db.interval = drandChain.Period
 	db.drandGenTime = uint64(drandChain.GenesisTime)
@@ -164,29 +184,26 @@ func (db *DrandBeacon) getCachedValue(round uint64) *types.BeaconEntry {
 	return v
 }
 
-func (db *DrandBeacon) VerifyEntry(curr types.BeaconEntry, prev types.BeaconEntry) error {
-	if prev.Round == 0 {
-		// TODO handle genesis better
-		return nil
-	}
-
-	if be := db.getCachedValue(curr.Round); be != nil {
-		if !bytes.Equal(curr.Data, be.Data) {
+func (db *DrandBeacon) VerifyEntry(entry types.BeaconEntry, prevEntrySig []byte) error {
+	if be := db.getCachedValue(entry.Round); be != nil {
+		if !bytes.Equal(entry.Data, be.Data) {
 			return xerrors.New("invalid beacon value, does not match cached good value")
 		}
 		// return no error if the value is in the cache already
 		return nil
 	}
 	b := &dchain.Beacon{
-		PreviousSig: prev.Data,
-		Round:       curr.Round,
-		Signature:   curr.Data,
-	}
-	err := dchain.NewVerifier(scheme.GetSchemeFromEnv()).VerifyBeacon(*b, db.pubkey)
-	if err == nil {
-		db.cacheValue(curr)
+		PreviousSig: prevEntrySig,
+		Round:       entry.Round,
+		Signature:   entry.Data,
 	}
 
+	err := db.scheme.VerifyBeacon(b, db.pubkey)
+	if err != nil {
+		return xerrors.Errorf("failed to verify beacon: %w", err)
+	}
+
+	db.cacheValue(entry)
 	return nil
 }
 
@@ -223,7 +240,7 @@ var _ beacon.RandomBeacon = (*DrandBeacon)(nil)
 func BeaconScheduleFromDrandSchedule(dcs dtypes.DrandSchedule, genesisTime uint64, ps *pubsub.PubSub) (beacon.Schedule, error) {
 	shd := beacon.Schedule{}
 	for _, dc := range dcs {
-		bc, err := NewDrandBeacon(genesisTime, build.BlockDelaySecs, ps, dc.Config)
+		bc, err := NewDrandBeacon(genesisTime, buildconstants.BlockDelaySecs, ps, dc.Config)
 		if err != nil {
 			return nil, xerrors.Errorf("creating drand beacon: %w", err)
 		}

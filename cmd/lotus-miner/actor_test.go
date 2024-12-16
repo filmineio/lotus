@@ -1,4 +1,3 @@
-// stm: #unit
 package main
 
 import (
@@ -19,12 +18,12 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/cli/spcli"
 	"github.com/filecoin-project/lotus/itests/kit"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
 func TestWorkerKeyChange(t *testing.T) {
-	//stm: @OTHER_WORKER_KEY_CHANGE_001
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
 	}
@@ -67,7 +66,7 @@ func TestWorkerKeyChange(t *testing.T) {
 	// Initialize wallet.
 	kit.SendFunds(ctx, t, client1, newKey, abi.NewTokenAmount(0))
 
-	require.NoError(t, run(actorProposeChangeWorker, "--really-do-it", newKey.String()))
+	require.NoError(t, run(spcli.ActorProposeChangeWorkerCmd(LMActorGetter), "--really-do-it", newKey.String()))
 
 	result := output.String()
 	output.Reset()
@@ -82,12 +81,12 @@ func TestWorkerKeyChange(t *testing.T) {
 	require.NotZero(t, targetEpoch)
 
 	// Too early.
-	require.Error(t, run(actorConfirmChangeWorker, "--really-do-it", newKey.String()))
+	require.Error(t, run(spcli.ActorConfirmChangeWorkerCmd(LMActorGetter), "--really-do-it", newKey.String()))
 	output.Reset()
 
 	client1.WaitTillChain(ctx, kit.HeightAtLeast(abi.ChainEpoch(targetEpoch)))
 
-	require.NoError(t, run(actorConfirmChangeWorker, "--really-do-it", newKey.String()))
+	require.NoError(t, run(spcli.ActorConfirmChangeWorkerCmd(LMActorGetter), "--really-do-it", newKey.String()))
 	output.Reset()
 
 	head, err := client1.ChainHead(ctx)

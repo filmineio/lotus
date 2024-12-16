@@ -29,6 +29,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/cmd/lotus-worker/sealworker"
@@ -70,7 +71,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "lotus-worker",
 		Usage:                "Remote miner worker",
-		Version:              build.UserVersion(),
+		Version:              string(build.MinerUserVersion()),
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -104,7 +105,7 @@ func main() {
 		After: func(c *cli.Context) error {
 			if r := recover(); r != nil {
 				// Generate report in LOTUS_PANIC_REPORT_PATH and re-raise panic
-				build.GeneratePanicReport(c.String("panic-reports"), c.String(FlagWorkerRepo), c.App.Name)
+				build.GenerateMinerPanicReport(c.String("panic-reports"), c.String(FlagWorkerRepo), c.App.Name)
 				panic(r)
 			}
 			return nil
@@ -348,8 +349,8 @@ Example invocation of lotus-bench as external executor:
 		case err != nil:
 			return xerrors.Errorf("checking fd limit: %w", err)
 		default:
-			if limit < build.MinerFDLimit {
-				return xerrors.Errorf("soft file descriptor limit (ulimit -n) too low, want %d, current %d", build.MinerFDLimit, limit)
+			if limit < buildconstants.MinerFDLimit {
+				return xerrors.Errorf("soft file descriptor limit (ulimit -n) too low, want %d, current %d", buildconstants.MinerFDLimit, limit)
 			}
 		}
 

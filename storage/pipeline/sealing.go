@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -24,13 +25,15 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
-	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
 	"github.com/filecoin-project/lotus/chain/events"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/journal"
+	"github.com/filecoin-project/lotus/lib/result"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage/ctladdr"
+	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
@@ -42,19 +45,16 @@ var ErrTooManySectorsSealing = xerrors.New("too many sectors sealing")
 
 var log = logging.Logger("sectors")
 
-//go:generate go run github.com/golang/mock/mockgen -destination=mocks/api.go -package=mocks . SealingAPI
-
 type SealingAPI interface {
 	StateWaitMsg(ctx context.Context, cid cid.Cid, confidence uint64, limit abi.ChainEpoch, allowReplaced bool) (*api.MsgLookup, error)
 	StateSearchMsg(ctx context.Context, from types.TipSetKey, msg cid.Cid, limit abi.ChainEpoch, allowReplaced bool) (*api.MsgLookup, error)
 
 	StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error)
-	StateComputeDataCID(ctx context.Context, maddr address.Address, sectorType abi.RegisteredSealProof, deals []abi.DealID, tsk types.TipSetKey) (cid.Cid, error)
 	StateSectorGetInfo(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error)
-	StateSectorPartition(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tsk types.TipSetKey) (*lminer.SectorLocation, error)
+	StateSectorPartition(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorLocation, error)
 	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	StateMinerPreCommitDepositForPower(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (big.Int, error)
-	StateMinerInitialPledgeCollateral(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (big.Int, error)
+	StateMinerInitialPledgeForSector(ctx context.Context, sectorDuration abi.ChainEpoch, sectorSize abi.SectorSize, verifiedSize uint64, tsk types.TipSetKey) (types.BigInt, error)
 	StateMinerInfo(context.Context, address.Address, types.TipSetKey) (api.MinerInfo, error)
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (big.Int, error)
 	StateMinerSectorAllocated(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (bool, error)
@@ -72,6 +72,13 @@ type SealingAPI interface {
 	ChainReadObj(context.Context, cid.Cid) ([]byte, error)
 	StateMinerAllocated(context.Context, address.Address, types.TipSetKey) (*bitfield.BitField, error)
 	StateGetAllocationForPendingDeal(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*verifregtypes.Allocation, error)
+	StateGetAllocationIdForPendingDeal(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (verifreg.AllocationId, error)
+	StateGetAllocation(ctx context.Context, clientAddr address.Address, allocationId verifregtypes.AllocationId, tsk types.TipSetKey) (*verifregtypes.Allocation, error)
+
+	StateGetActor(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*types.Actor, error)
+	StateVMCirculatingSupplyInternal(ctx context.Context, tsk types.TipSetKey) (api.CirculatingSupply, error)
+	ChainHasObj(ctx context.Context, c cid.Cid) (bool, error)
+	ChainPutObj(ctx context.Context, block blocks.Block) error
 
 	// Address selector
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
@@ -110,8 +117,8 @@ type Sealing struct {
 	inputLk        sync.Mutex
 	openSectors    map[abi.SectorID]*openSector
 	sectorTimers   map[abi.SectorID]*time.Timer
-	pendingPieces  map[cid.Cid]*pendingPiece
-	assignedPieces map[abi.SectorID][]cid.Cid
+	pendingPieces  map[piece.PieceKey]*pendingPiece
+	assignedPieces map[abi.SectorID][]piece.PieceKey
 	nextDealSector *abi.SectorNumber // used to prevent a race where we could create a new sector more than once
 
 	available map[abi.SectorID]struct{}
@@ -139,16 +146,16 @@ type openSector struct {
 	number      abi.SectorNumber
 	ccUpdate    bool
 
-	maybeAccept func(cid.Cid) error // called with inputLk
+	maybeAccept func(key piece.PieceKey) error // called with inputLk
 }
 
 func (o *openSector) checkDealAssignable(piece *pendingPiece, expF expFn) (bool, error) {
 	log := log.With(
 		"sector", o.number,
 
-		"deal", piece.deal.DealID,
-		"dealEnd", piece.deal.DealProposal.EndEpoch,
-		"dealStart", piece.deal.DealProposal.StartEpoch,
+		"piece", piece.deal.String(),
+		"dealEnd", result.Wrap(piece.deal.EndEpoch()),
+		"dealStart", result.Wrap(piece.deal.StartEpoch()),
 		"dealClaimEnd", piece.claimTerms.claimTermEnd,
 
 		"lastAssignedDealEnd", o.lastDealEnd,
@@ -181,7 +188,12 @@ func (o *openSector) checkDealAssignable(piece *pendingPiece, expF expFn) (bool,
 		return false, nil
 	}
 
-	if sectorExpiration < piece.deal.DealProposal.EndEpoch {
+	endEpoch, err := piece.deal.EndEpoch()
+	if err != nil {
+		return false, xerrors.Errorf("failed to get end epoch: %w", err)
+	}
+
+	if sectorExpiration < endEpoch {
 		log.Debugw("deal not assignable to sector", "reason", "sector expiration less than deal expiration")
 		return false, nil
 	}
@@ -205,7 +217,7 @@ type pendingPiece struct {
 	resp   *pieceAcceptResp
 
 	size abi.UnpaddedPieceSize
-	deal api.PieceDealInfo
+	deal UniversalPieceInfo
 
 	claimTerms pieceClaimBounds
 
@@ -215,10 +227,10 @@ type pendingPiece struct {
 	accepted func(abi.SectorNumber, abi.UnpaddedPieceSize, error)
 }
 
-func New(mctx context.Context, api SealingAPI, fc config.MinerFeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sealer.SectorManager, verif storiface.Verifier, prov storiface.Prover, pcp PreCommitPolicy, gc dtypes.GetSealingConfigFunc, journal journal.Journal, addrSel AddressSelector) *Sealing {
+func New(mctx context.Context, sapi SealingAPI, fc config.MinerFeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sealer.SectorManager, verif storiface.Verifier, prov storiface.Prover, pcp PreCommitPolicy, gc dtypes.GetSealingConfigFunc, journal journal.Journal, addrSel AddressSelector) (*Sealing, error) {
 	s := &Sealing{
-		Api:      api,
-		DealInfo: &CurrentDealInfoManager{api},
+		Api:      sapi,
+		DealInfo: &CurrentDealInfoManager{sapi},
 
 		ds: ds,
 
@@ -232,8 +244,8 @@ func New(mctx context.Context, api SealingAPI, fc config.MinerFeeConfig, events 
 
 		openSectors:    map[abi.SectorID]*openSector{},
 		sectorTimers:   map[abi.SectorID]*time.Timer{},
-		pendingPieces:  map[cid.Cid]*pendingPiece{},
-		assignedPieces: map[abi.SectorID][]cid.Cid{},
+		pendingPieces:  map[piece.PieceKey]*pendingPiece{},
+		assignedPieces: map[abi.SectorID][]piece.PieceKey{},
 
 		available: map[abi.SectorID]struct{}{},
 
@@ -242,11 +254,8 @@ func New(mctx context.Context, api SealingAPI, fc config.MinerFeeConfig, events 
 
 		addrSel: addrSel,
 
-		terminator:  NewTerminationBatcher(mctx, maddr, api, addrSel, fc, gc),
-		precommiter: NewPreCommitBatcher(mctx, maddr, api, addrSel, fc, gc),
-		commiter:    NewCommitBatcher(mctx, maddr, api, addrSel, fc, gc, prov),
-
-		getConfig: gc,
+		terminator: NewTerminationBatcher(mctx, maddr, sapi, addrSel, fc, gc),
+		getConfig:  gc,
 
 		legacySc: storedcounter.New(ds, datastore.NewKey(StorageCounterDSPrefix)),
 
@@ -255,6 +264,17 @@ func New(mctx context.Context, api SealingAPI, fc config.MinerFeeConfig, events 
 			byState:  map[SectorState]int64{},
 		},
 	}
+	pc, err := NewPreCommitBatcher(mctx, maddr, sapi, addrSel, fc, gc)
+	if err != nil {
+		return nil, err
+	}
+	s.precommiter = pc
+
+	cc, err := NewCommitBatcher(mctx, maddr, sapi, addrSel, fc, gc, prov)
+	if err != nil {
+		return nil, err
+	}
+	s.commiter = cc
 
 	s.notifee = func(before, after SectorInfo) {
 		s.journal.RecordEvent(s.sealingEvtType, func() interface{} {
@@ -272,7 +292,7 @@ func New(mctx context.Context, api SealingAPI, fc config.MinerFeeConfig, events 
 
 	s.sectors = statemachine.New(namespace.Wrap(ds, datastore.NewKey(SectorStorePrefix)), s, SectorInfo{})
 
-	return s
+	return s, nil
 }
 
 func (m *Sealing) Run(ctx context.Context) {
@@ -358,7 +378,7 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 		return 0, err
 	}
 
-	return lminer.PreferredSealProofTypeFromWindowPoStType(ver, mi.WindowPoStProofType, c.UseSyntheticPoRep)
+	return miner.PreferredSealProofTypeFromWindowPoStType(ver, mi.WindowPoStProofType, c.UseSyntheticPoRep)
 }
 
 func (m *Sealing) minerSector(spt abi.RegisteredSealProof, num abi.SectorNumber) storiface.SectorRef {

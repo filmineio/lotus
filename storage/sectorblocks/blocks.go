@@ -19,13 +19,8 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-)
-
-type SealSerialization uint8
-
-const (
-	SerializationUnixfs0 SealSerialization = 'u'
 )
 
 var dsPrefix = datastore.NewKey("/sealedblocks")
@@ -48,7 +43,7 @@ func DsKeyToDealID(key datastore.Key) (uint64, error) {
 }
 
 type SectorBuilder interface {
-	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d api.PieceDealInfo) (api.SectorOffset, error)
+	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d piece.PieceDealInfo) (api.SectorOffset, error)
 	SectorsStatus(ctx context.Context, sid abi.SectorNumber, showOnChainInfo bool) (api.SectorInfo, error)
 }
 
@@ -100,7 +95,7 @@ func (st *SectorBlocks) writeRef(ctx context.Context, dealID abi.DealID, sectorI
 	return st.keys.Put(ctx, DealIDToDsKey(dealID), newRef) // TODO: batch somehow
 }
 
-func (st *SectorBlocks) AddPiece(ctx context.Context, size abi.UnpaddedPieceSize, r io.Reader, d api.PieceDealInfo) (abi.SectorNumber, abi.PaddedPieceSize, error) {
+func (st *SectorBlocks) AddPiece(ctx context.Context, size abi.UnpaddedPieceSize, r io.Reader, d piece.PieceDealInfo) (abi.SectorNumber, abi.PaddedPieceSize, error) {
 	so, err := st.SectorBuilder.SectorAddPieceToAny(ctx, size, r, d)
 	if err != nil {
 		return 0, 0, err

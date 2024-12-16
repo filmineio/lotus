@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 )
 
@@ -70,16 +71,24 @@ func (e *EthModuleDummy) EthGetTransactionReceipt(ctx context.Context, txHash et
 	return nil, ErrModuleDisabled
 }
 
+func (e *EthModuleDummy) EthGetBlockReceiptsLimited(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash, limit abi.ChainEpoch) ([]*api.EthTxReceipt, error) {
+	return nil, ErrModuleDisabled
+}
+
+func (e *EthModuleDummy) EthGetBlockReceipts(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash) ([]*api.EthTxReceipt, error) {
+	return nil, ErrModuleDisabled
+}
+
 func (e *EthModuleDummy) EthGetTransactionReceiptLimited(ctx context.Context, txHash ethtypes.EthHash, limit abi.ChainEpoch) (*api.EthTxReceipt, error) {
 	return nil, ErrModuleDisabled
 }
 
-func (e *EthModuleDummy) EthGetTransactionByBlockHashAndIndex(ctx context.Context, blkHash ethtypes.EthHash, txIndex ethtypes.EthUint64) (ethtypes.EthTx, error) {
-	return ethtypes.EthTx{}, ErrModuleDisabled
+func (e *EthModuleDummy) EthGetTransactionByBlockHashAndIndex(ctx context.Context, blkHash ethtypes.EthHash, txIndex ethtypes.EthUint64) (*ethtypes.EthTx, error) {
+	return nil, ErrModuleDisabled
 }
 
-func (e *EthModuleDummy) EthGetTransactionByBlockNumberAndIndex(ctx context.Context, blkNum ethtypes.EthUint64, txIndex ethtypes.EthUint64) (ethtypes.EthTx, error) {
-	return ethtypes.EthTx{}, ErrModuleDisabled
+func (e *EthModuleDummy) EthGetTransactionByBlockNumberAndIndex(ctx context.Context, blkNum string, txIndex ethtypes.EthUint64) (*ethtypes.EthTx, error) {
+	return nil, ErrModuleDisabled
 }
 
 func (e *EthModuleDummy) EthGetCode(ctx context.Context, address ethtypes.EthAddress, blkParam ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
@@ -186,5 +195,27 @@ func (e *EthModuleDummy) EthTraceReplayBlockTransactions(ctx context.Context, bl
 	return nil, ErrModuleDisabled
 }
 
+func (e *EthModuleDummy) EthTraceTransaction(ctx context.Context, txHash string) ([]*ethtypes.EthTraceTransaction, error) {
+	return nil, ErrModuleDisabled
+}
+
+func (e *EthModuleDummy) EthTraceFilter(ctx context.Context, filter ethtypes.EthTraceFilterCriteria) ([]*ethtypes.EthTraceFilterResult, error) {
+	return nil, ErrModuleDisabled
+}
+
 var _ EthModuleAPI = &EthModuleDummy{}
 var _ EthEventAPI = &EthModuleDummy{}
+
+var ErrActorEventModuleDisabled = errors.New("module disabled, enable with Events.EnableActorEventsAPI")
+
+type ActorEventDummy struct{}
+
+func (a *ActorEventDummy) GetActorEventsRaw(ctx context.Context, filter *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	return nil, ErrActorEventModuleDisabled
+}
+
+func (a *ActorEventDummy) SubscribeActorEventsRaw(ctx context.Context, filter *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	return nil, ErrActorEventModuleDisabled
+}
+
+var _ ActorEventAPI = &ActorEventDummy{}

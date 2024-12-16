@@ -28,7 +28,7 @@ const (
 var (
 	ErrNoAPIEndpoint     = errors.New("API not running (no endpoint)")
 	ErrNoAPIToken        = errors.New("API token not set")
-	ErrRepoAlreadyLocked = errors.New("repo is already locked (lotus daemon already running)")
+	ErrRepoAlreadyLocked = errors.New("repo is already locked (process is already running)")
 	ErrClosedRepo        = errors.New("repo is no longer open")
 
 	// ErrInvalidBlockstoreDomain is returned by LockedRepo#Blockstore() when
@@ -69,8 +69,8 @@ type LockedRepo interface {
 	// SplitstorePath returns the path for the SplitStore
 	SplitstorePath() (string, error)
 
-	// SqlitePath returns the path for the Sqlite database
-	SqlitePath() (string, error)
+	// ChainIndexPath returns the path for the chain index database
+	ChainIndexPath() (string, error)
 
 	// Returns config in this repo
 	Config() (interface{}, error)

@@ -3,6 +3,7 @@ package sealing
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/url"
 
 	"github.com/ipfs/go-cid"
@@ -62,7 +63,7 @@ func (m *Sealing) checkSectorMeta(ctx context.Context, meta api.RemoteSectorMeta
 	{
 		// initial sanity check, doesn't prevent races
 		_, err := m.GetSectorInfo(meta.Sector.Number)
-		if err != nil && !xerrors.Is(err, datastore.ErrNotFound) {
+		if err != nil && !errors.Is(err, datastore.ErrNotFound) {
 			return SectorInfo{}, err
 		}
 		if err == nil {
@@ -84,6 +85,11 @@ func (m *Sealing) checkSectorMeta(ctx context.Context, meta api.RemoteSectorMeta
 	ts, err := m.Api.ChainHead(ctx)
 	if err != nil {
 		return SectorInfo{}, xerrors.Errorf("getting chain head: %w", err)
+	}
+
+	nv, err := m.Api.StateNetworkVersion(ctx, ts.Key())
+	if err != nil {
+		return SectorInfo{}, xerrors.Errorf("getting network version: %w", err)
 	}
 
 	var info SectorInfo
@@ -217,8 +223,23 @@ func (m *Sealing) checkSectorMeta(ctx context.Context, meta api.RemoteSectorMeta
 		info.State = ReceiveSector
 
 		info.SectorNumber = meta.Sector.Number
-		info.Pieces = meta.Pieces
+		info.Pieces = make([]SafeSectorPiece, len(meta.Pieces))
 		info.SectorType = meta.Type
+
+		for i, piece := range meta.Pieces {
+			info.Pieces[i] = SafeSectorPiece{
+				real: piece,
+			}
+
+			if !info.Pieces[i].HasDealInfo() {
+				continue // cc
+			}
+
+			err := info.Pieces[i].DealInfo().Valid(nv)
+			if err != nil {
+				return SectorInfo{}, xerrors.Errorf("piece %d deal info invalid: %w", i, err)
+			}
+		}
 
 		if meta.RemoteSealingDoneEndpoint != "" {
 			// validate the url
@@ -229,7 +250,7 @@ func (m *Sealing) checkSectorMeta(ctx context.Context, meta api.RemoteSectorMeta
 			info.RemoteSealingDoneEndpoint = meta.RemoteSealingDoneEndpoint
 		}
 
-		if err := checkPieces(ctx, m.maddr, meta.Sector.Number, meta.Pieces, m.Api, false); err != nil {
+		if err := checkPieces(ctx, m.maddr, meta.Sector.Number, info.Pieces, m.Api, false); err != nil {
 			return SectorInfo{}, xerrors.Errorf("checking pieces: %w", err)
 		}
 

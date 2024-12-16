@@ -9,6 +9,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
+	"github.com/filecoin-project/go-f3/certs"
 	"github.com/filecoin-project/go-state-types/abi"
 	verifregtypes "github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
 	"github.com/filecoin-project/go-state-types/crypto"
@@ -413,10 +414,10 @@ func (gw *Node) StateSearchMsg(ctx context.Context, from types.TipSetKey, msg ci
 		return nil, err
 	}
 	if limit == api.LookbackNoLimit {
-		limit = gw.stateWaitLookbackLimit
+		limit = gw.maxMessageLookbackEpochs
 	}
-	if gw.stateWaitLookbackLimit != api.LookbackNoLimit && limit > gw.stateWaitLookbackLimit {
-		limit = gw.stateWaitLookbackLimit
+	if gw.maxMessageLookbackEpochs != api.LookbackNoLimit && limit > gw.maxMessageLookbackEpochs {
+		limit = gw.maxMessageLookbackEpochs
 	}
 	if err := gw.checkTipsetKey(ctx, from); err != nil {
 		return nil, err
@@ -429,12 +430,43 @@ func (gw *Node) StateWaitMsg(ctx context.Context, msg cid.Cid, confidence uint64
 		return nil, err
 	}
 	if limit == api.LookbackNoLimit {
-		limit = gw.stateWaitLookbackLimit
+		limit = gw.maxMessageLookbackEpochs
 	}
-	if gw.stateWaitLookbackLimit != api.LookbackNoLimit && limit > gw.stateWaitLookbackLimit {
-		limit = gw.stateWaitLookbackLimit
+	if gw.maxMessageLookbackEpochs != api.LookbackNoLimit && limit > gw.maxMessageLookbackEpochs {
+		limit = gw.maxMessageLookbackEpochs
 	}
 	return gw.target.StateWaitMsg(ctx, msg, confidence, limit, allowReplaced)
+}
+
+func (gw *Node) GetActorEventsRaw(ctx context.Context, filter *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	if err := gw.limit(ctx, stateRateLimitTokens); err != nil {
+		return nil, err
+	}
+	if filter != nil && filter.FromHeight != nil {
+		if err := gw.checkTipSetHeight(ctx, *filter.FromHeight, types.EmptyTSK); err != nil {
+			return nil, err
+		}
+	}
+	return gw.target.GetActorEventsRaw(ctx, filter)
+}
+
+func (gw *Node) SubscribeActorEventsRaw(ctx context.Context, filter *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	if err := gw.limit(ctx, stateRateLimitTokens); err != nil {
+		return nil, err
+	}
+	if filter != nil && filter.FromHeight != nil {
+		if err := gw.checkTipSetHeight(ctx, *filter.FromHeight, types.EmptyTSK); err != nil {
+			return nil, err
+		}
+	}
+	return gw.target.SubscribeActorEventsRaw(ctx, filter)
+}
+
+func (gw *Node) ChainGetEvents(ctx context.Context, eventsRoot cid.Cid) ([]types.Event, error) {
+	if err := gw.limit(ctx, chainRateLimitTokens); err != nil {
+		return nil, err
+	}
+	return gw.target.ChainGetEvents(ctx, eventsRoot)
 }
 
 func (gw *Node) StateReadState(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*api.ActorState, error) {
@@ -629,4 +661,18 @@ func (gw *Node) StateGetClaims(ctx context.Context, providerAddr address.Address
 		return nil, err
 	}
 	return gw.target.StateGetClaims(ctx, providerAddr, tsk)
+}
+
+func (gw *Node) F3GetCertificate(ctx context.Context, instance uint64) (*certs.FinalityCertificate, error) {
+	if err := gw.limit(ctx, basicRateLimitTokens); err != nil {
+		return nil, err
+	}
+	return gw.target.F3GetCertificate(ctx, instance)
+}
+
+func (gw *Node) F3GetLatestCertificate(ctx context.Context) (*certs.FinalityCertificate, error) {
+	if err := gw.limit(ctx, basicRateLimitTokens); err != nil {
+		return nil, err
+	}
+	return gw.target.F3GetLatestCertificate(ctx)
 }

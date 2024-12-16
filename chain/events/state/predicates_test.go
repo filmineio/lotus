@@ -1,4 +1,3 @@
-// stm: #unit
 package state
 
 import (
@@ -33,12 +32,7 @@ func init() {
 }
 
 func TestMarketPredicates(t *testing.T) {
-	//stm: @EVENTS_PREDICATES_ON_ACTOR_STATE_CHANGED_001, @EVENTS_PREDICATES_DEAL_STATE_CHANGED_001
-	//stm: @EVENTS_PREDICATES_DEAL_CHANGED_FOR_IDS
 
-	//stm: @EVENTS_PREDICATES_ON_BALANCE_CHANGED_001, @EVENTS_PREDICATES_BALANCE_CHANGED_FOR_ADDRESS_001
-	//stm: @EVENTS_PREDICATES_ON_DEAL_PROPOSAL_CHANGED_001, @EVENTS_PREDICATES_PROPOSAL_AMT_CHANGED_001
-	//stm: @EVENTS_PREDICATES_DEAL_STATE_CHANGED_001, @EVENTS_PREDICATES_DEAL_AMT_CHANGED_001
 	ctx := context.Background()
 	bs := bstore.NewMemorySync()
 	store := adt2.WrapStore(ctx, cbornode.NewCborStore(bs))
@@ -177,11 +171,11 @@ func TestMarketPredicates(t *testing.T) {
 		require.Contains(t, changedDealIDs, abi.DealID(1))
 		require.Contains(t, changedDealIDs, abi.DealID(2))
 		deal1 := changedDealIDs[abi.DealID(1)]
-		if deal1.From.LastUpdatedEpoch != 2 || deal1.To.LastUpdatedEpoch != 3 {
+		if deal1.From.LastUpdatedEpoch() != 2 || deal1.To.LastUpdatedEpoch() != 3 {
 			t.Fatal("Unexpected change to LastUpdatedEpoch")
 		}
 		deal2 := changedDealIDs[abi.DealID(2)]
-		if deal2.From.LastUpdatedEpoch != 5 || deal2.To != nil {
+		if deal2.From.LastUpdatedEpoch() != 5 || deal2.To != nil {
 			t.Fatal("Expected To to be nil")
 		}
 
@@ -243,8 +237,8 @@ func TestMarketPredicates(t *testing.T) {
 
 		require.Len(t, changedDeals.Modified, 1)
 		require.Equal(t, abi.DealID(1), changedDeals.Modified[0].ID)
-		require.True(t, dealEquality(*newDeal1, *changedDeals.Modified[0].To))
-		require.True(t, dealEquality(*oldDeal1, *changedDeals.Modified[0].From))
+		require.True(t, dealEquality(*newDeal1, changedDeals.Modified[0].To))
+		require.True(t, dealEquality(*oldDeal1, changedDeals.Modified[0].From))
 
 		require.Equal(t, abi.DealID(2), changedDeals.Removed[0].ID)
 	})
@@ -337,8 +331,6 @@ func TestMarketPredicates(t *testing.T) {
 }
 
 func TestMinerSectorChange(t *testing.T) {
-	//stm: @EVENTS_PREDICATES_ON_ACTOR_STATE_CHANGED_001, @EVENTS_PREDICATES_MINER_ACTOR_CHANGE_001
-	//stm: @EVENTS_PREDICATES_MINER_SECTOR_CHANGE_001
 	ctx := context.Background()
 	bs := bstore.NewMemorySync()
 	store := adt2.WrapStore(ctx, cbornode.NewCborStore(bs))
@@ -579,7 +571,7 @@ func newSectorPreCommitInfo(sectorNo abi.SectorNumber, sealed cid.Cid, expiratio
 }
 
 func dealEquality(expected market2.DealState, actual market.DealState) bool {
-	return expected.LastUpdatedEpoch == actual.LastUpdatedEpoch &&
-		expected.SectorStartEpoch == actual.SectorStartEpoch &&
-		expected.SlashEpoch == actual.SlashEpoch
+	return expected.LastUpdatedEpoch == actual.LastUpdatedEpoch() &&
+		expected.SectorStartEpoch == actual.SectorStartEpoch() &&
+		expected.SlashEpoch == actual.SlashEpoch()
 }

@@ -12,11 +12,15 @@ import (
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-commp-utils/zerocomm"
+	"github.com/filecoin-project/go-address"
+	cborutil "github.com/filecoin-project/go-cbor-util"
+	"github.com/filecoin-project/go-commp-utils/v2/zerocomm"
 	"github.com/filecoin-project/go-state-types/abi"
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/big"
-	"github.com/filecoin-project/go-state-types/builtin"
+	miner2 "github.com/filecoin-project/go-state-types/builtin/v13/miner"
+	verifreg13 "github.com/filecoin-project/go-state-types/builtin/v13/verifreg"
+	"github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/exitcode"
 	"github.com/filecoin-project/go-state-types/network"
@@ -24,13 +28,17 @@ import (
 	"github.com/filecoin-project/go-statemachine"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/lib/filler"
 	"github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
+
+const MinDDONetworkVersion = network.Version22
 
 var DealSectorPriority = 1024
 var MaxTicketAge = policy.MaxPreCommitRandomnessLookback
@@ -59,7 +67,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 	m.cleanupAssignedDeals(sector)
 
 	// if this is a snapdeals sector, but it ended up not having any deals, abort the upgrade
-	if sector.State == SnapDealsPacking && !sector.hasDeals() {
+	if sector.State == SnapDealsPacking && !sector.hasData() {
 		return ctx.Send(SectorAbortUpgrade{xerrors.New("sector had no deals")})
 	}
 
@@ -67,7 +75,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 
 	var allocated abi.UnpaddedPieceSize
 	for _, piece := range sector.Pieces {
-		allocated += piece.Piece.Size.Unpadded()
+		allocated += piece.Piece().Size.Unpadded()
 	}
 
 	ssize, err := sector.SectorType.SectorSize()
@@ -81,7 +89,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 		return xerrors.Errorf("too much data in sector: %d > %d", allocated, ubytes)
 	}
 
-	fillerSizes, err := fillersFromRem(ubytes - allocated)
+	fillerSizes, err := filler.FillersFromRem(ubytes - allocated)
 	if err != nil {
 		return err
 	}
@@ -395,7 +403,7 @@ func (m *Sealing) preCommitInfo(ctx statemachine.Context, sector SectorInfo) (*m
 		return nil, big.Zero(), types.EmptyTSK, ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("failed to get max prove commit duration: %w", err)})
 	}
 
-	if minExpiration := sector.TicketEpoch + policy.MaxPreCommitRandomnessLookback + msd + miner.MinSectorExpiration; expiration < minExpiration {
+	if minExpiration := sector.TicketEpoch + policy.MaxPreCommitRandomnessLookback + msd + policy.GetMinSectorExpiration(); expiration < minExpiration {
 		expiration = minExpiration
 	}
 
@@ -417,10 +425,10 @@ func (m *Sealing) preCommitInfo(ctx statemachine.Context, sector SectorInfo) (*m
 
 		SealedCID:     *sector.CommR,
 		SealRandEpoch: sector.TicketEpoch,
-		DealIDs:       sector.dealIDs(),
 	}
 
-	if sector.hasDeals() {
+	if sector.hasData() {
+		// only CC sectors don't have UnsealedCID
 		params.UnsealedCid = sector.CommD
 	}
 
@@ -475,7 +483,7 @@ func (m *Sealing) handlePreCommitWait(ctx statemachine.Context, sector SectorInf
 
 	// would be ideal to just use the events.Called handler, but it wouldn't be able to handle individual message timeouts
 	log.Info("Sector precommitted: ", sector.SectorNumber)
-	mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.PreCommitMessage, build.MessageConfidence, api.LookbackNoLimit, true)
+	mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.PreCommitMessage, buildconstants.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return ctx.Send(SectorChainPreCommitFailed{err})
 	}
@@ -571,10 +579,6 @@ func (m *Sealing) handleCommitting(ctx statemachine.Context, sector SectorInfo) 
 	if err != nil {
 		return xerrors.Errorf("getting config: %w", err)
 	}
-
-	log.Info("scheduling seal proof computation...")
-
-	log.Infof("KOMIT %d %x(%d); %x(%d); %v; r:%s; d:%s", sector.SectorNumber, sector.TicketValue, sector.TicketEpoch, sector.SeedValue, sector.SeedEpoch, sector.pieceInfos(), sector.CommR, sector.CommD)
 
 	if sector.CommD == nil || sector.CommR == nil {
 		return ctx.Send(SectorCommitFailed{xerrors.Errorf("sector had nil commR or commD")})
@@ -700,92 +704,80 @@ func (m *Sealing) handleCommitting(ctx statemachine.Context, sector SectorInfo) 
 }
 
 func (m *Sealing) handleSubmitCommit(ctx statemachine.Context, sector SectorInfo) error {
-	cfg, err := m.getConfig()
-	if err != nil {
-		return xerrors.Errorf("getting config: %w", err)
-	}
+	// like precommit this is a deprecated state, but we keep it around for
+	// existing state machines
+	// todo: drop after nv21
+	return ctx.Send(SectorSubmitCommitAggregate{})
+}
 
-	if cfg.AggregateCommits {
-		nv, err := m.Api.StateNetworkVersion(ctx.Context(), types.EmptyTSK)
-		if err != nil {
-			return xerrors.Errorf("getting network version: %w", err)
+// processPieces returns either:
+// - a list of piece activation manifests
+// - a list of deal IDs, if all non-filler pieces are deal-id pieces
+func (m *Sealing) processPieces(ctx context.Context, sector SectorInfo) ([]miner.PieceActivationManifest, error) {
+	pams := make([]miner.PieceActivationManifest, 0, len(sector.Pieces))
+
+	for _, piece := range sector.Pieces {
+		piece := piece
+		if piece.HasDealInfo() {
+			info := piece.DealInfo()
+			// If we have a dealID then covert to PAM
+			if info.Impl().DealID > 0 {
+				alloc, err := m.Api.StateGetAllocationIdForPendingDeal(ctx, info.Impl().DealID, types.EmptyTSK)
+				if err != nil {
+					return nil, xerrors.Errorf("getting allocation for deal %d: %w", info.Impl().DealID, err)
+				}
+				clid, err := m.Api.StateLookupID(ctx, info.Impl().DealProposal.Client, types.EmptyTSK)
+				if err != nil {
+					return nil, xerrors.Errorf("getting client address for deal %d: %w", info.Impl().DealID, err)
+				}
+
+				clientId, err := address.IDFromAddress(clid)
+				if err != nil {
+					return nil, xerrors.Errorf("getting client address for deal %d: %w", info.Impl().DealID, err)
+				}
+
+				var vac *miner2.VerifiedAllocationKey
+				if alloc != verifreg.NoAllocationID {
+					vac = &miner2.VerifiedAllocationKey{
+						Client: abi.ActorID(clientId),
+						ID:     verifreg13.AllocationId(alloc),
+					}
+				}
+
+				payload, err := cborutil.Dump(info.Impl().DealID)
+				if err != nil {
+					return nil, xerrors.Errorf("serializing deal id: %w", err)
+				}
+
+				pams = append(pams, miner.PieceActivationManifest{
+					CID:                   piece.Piece().PieceCID,
+					Size:                  piece.Piece().Size,
+					VerifiedAllocationKey: vac,
+					Notify: []miner2.DataActivationNotification{
+						{
+							Address: market.Address,
+							Payload: payload,
+						},
+					},
+				})
+			} else {
+				// Add PAM directly
+				pams = append(pams, *info.Impl().PieceActivationManifest)
+			}
 		}
-
-		if nv >= network.Version13 {
-			return ctx.Send(SectorSubmitCommitAggregate{})
-		}
 	}
 
-	ts, err := m.Api.ChainHead(ctx.Context())
-	if err != nil {
-		log.Errorf("handleSubmitCommit: api error, not proceeding: %+v", err)
-		return nil
-	}
-
-	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, ts.Key()); err != nil {
-		return ctx.Send(SectorCommitFailed{xerrors.Errorf("commit check error: %w", err)})
-	}
-
-	enc := new(bytes.Buffer)
-	params := &miner.ProveCommitSectorParams{
-		SectorNumber: sector.SectorNumber,
-		Proof:        sector.Proof,
-	}
-
-	if err := params.MarshalCBOR(enc); err != nil {
-		return ctx.Send(SectorCommitFailed{xerrors.Errorf("could not serialize commit sector parameters: %w", err)})
-	}
-
-	mi, err := m.Api.StateMinerInfo(ctx.Context(), m.maddr, ts.Key())
-	if err != nil {
-		log.Errorf("handleCommitting: api error, not proceeding: %+v", err)
-		return nil
-	}
-
-	pci, err := m.Api.StateSectorPreCommitInfo(ctx.Context(), m.maddr, sector.SectorNumber, ts.Key())
-	if err != nil {
-		return xerrors.Errorf("getting precommit info: %w", err)
-	}
-	if pci == nil {
-		return ctx.Send(SectorCommitFailed{error: xerrors.Errorf("precommit info not found on chain")})
-	}
-
-	collateral, err := m.Api.StateMinerInitialPledgeCollateral(ctx.Context(), m.maddr, pci.Info, ts.Key())
-	if err != nil {
-		return xerrors.Errorf("getting initial pledge collateral: %w", err)
-	}
-
-	collateral = big.Sub(collateral, pci.PreCommitDeposit)
-	if collateral.LessThan(big.Zero()) {
-		collateral = big.Zero()
-	}
-
-	collateral, err = collateralSendAmount(ctx.Context(), m.Api, m.maddr, cfg, collateral)
-	if err != nil {
-		return err
-	}
-
-	goodFunds := big.Add(collateral, big.Int(m.feeCfg.MaxCommitGasFee))
-
-	from, _, err := m.addrSel.AddressFor(ctx.Context(), m.Api, mi, api.CommitAddr, goodFunds, collateral)
-	if err != nil {
-		return ctx.Send(SectorCommitFailed{xerrors.Errorf("no good address to send commit message from: %w", err)})
-	}
-
-	// TODO: check seed / ticket / deals are up to date
-	mcid, err := sendMsg(ctx.Context(), m.Api, from, m.maddr, builtin.MethodsMiner.ProveCommitSector, collateral, big.Int(m.feeCfg.MaxCommitGasFee), enc.Bytes())
-	if err != nil {
-		return ctx.Send(SectorCommitFailed{xerrors.Errorf("pushing message to mpool: %w", err)})
-	}
-
-	return ctx.Send(SectorCommitSubmitted{
-		Message: mcid,
-	})
+	return pams, nil
 }
 
 func (m *Sealing) handleSubmitCommitAggregate(ctx statemachine.Context, sector SectorInfo) error {
 	if sector.CommD == nil || sector.CommR == nil {
 		return ctx.Send(SectorCommitFailed{xerrors.Errorf("sector had nil commR or commD")})
+	}
+
+	pams, err := m.processPieces(ctx.Context(), sector)
+	if err != nil {
+		return err
 	}
 
 	res, err := m.commiter.AddCommit(ctx.Context(), sector, AggregateInput{
@@ -796,8 +788,13 @@ func (m *Sealing) handleSubmitCommitAggregate(ctx statemachine.Context, sector S
 			SealedCID:             *sector.CommR,
 			UnsealedCID:           *sector.CommD,
 		},
-		Proof: sector.Proof, // todo: this correct??
+		Proof: sector.Proof,
 		Spt:   sector.SectorType,
+
+		ActivationManifest: miner2.SectorActivationManifest{
+			SectorNumber: sector.SectorNumber,
+			Pieces:       pams,
+		},
 	})
 
 	if err != nil || res.Error != "" {
@@ -831,7 +828,7 @@ func (m *Sealing) handleCommitWait(ctx statemachine.Context, sector SectorInfo) 
 		return ctx.Send(SectorCommitFailed{xerrors.Errorf("entered commit wait with no commit cid")})
 	}
 
-	mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.CommitMessage, build.MessageConfidence, api.LookbackNoLimit, true)
+	mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.CommitMessage, buildconstants.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return ctx.Send(SectorCommitFailed{xerrors.Errorf("failed to wait for porep inclusion: %w", err)})
 	}
@@ -875,7 +872,7 @@ func (m *Sealing) handleFinalizeSector(ctx statemachine.Context, sector SectorIn
 		return ctx.Send(SectorFinalizeFailed{xerrors.Errorf("finalize sector: %w", err)})
 	}
 
-	if cfg.MakeCCSectorsAvailable && !sector.hasDeals() {
+	if cfg.MakeCCSectorsAvailable && !sector.hasData() {
 		return ctx.Send(SectorFinalizedAvailable{})
 	}
 	return ctx.Send(SectorFinalized{})

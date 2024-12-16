@@ -1,16 +1,9 @@
 package dtypes
 
-import "github.com/filecoin-project/go-state-types/abi"
+import (
+	"github.com/filecoin-project/lotus/build/buildconstants"
+)
 
-type DrandSchedule []DrandPoint
-
-type DrandPoint struct {
-	Start  abi.ChainEpoch
-	Config DrandConfig
-}
-
-type DrandConfig struct {
-	Servers       []string
-	Relays        []string
-	ChainInfoJSON string
-}
+type DrandSchedule = []buildconstants.DrandPoint
+type DrandPoint = buildconstants.DrandPoint
+type DrandConfig = buildconstants.DrandConfig

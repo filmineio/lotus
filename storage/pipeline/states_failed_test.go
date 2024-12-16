@@ -1,4 +1,3 @@
-// stm: #unit
 package sealing_test
 
 import (
@@ -23,6 +22,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	pipeline "github.com/filecoin-project/lotus/storage/pipeline"
 	"github.com/filecoin-project/lotus/storage/pipeline/mocks"
+	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 )
 
 func TestStateRecoverDealIDs(t *testing.T) {
@@ -49,7 +49,6 @@ func TestStateRecoverDealIDs(t *testing.T) {
 		PieceCID: idCid("newPieceCID"),
 	}
 
-	//stm: @CHAIN_STATE_MARKET_STORAGE_DEAL_001, @CHAIN_STATE_NETWORK_VERSION_001
 	api.EXPECT().StateMarketStorageDeal(ctx, dealId, nil).Return(&api2.MarketDeal{Proposal: dealProposal}, nil)
 
 	pc := idCid("publishCID")
@@ -76,16 +75,16 @@ func TestStateRecoverDealIDs(t *testing.T) {
 	// TODO sctx should satisfy an interface so it can be useable for mocking.  This will fail because we are passing in an empty context now to get this to build.
 	// https://github.com/filecoin-project/lotus/issues/7867
 	err := fakeSealing.HandleRecoverDealIDs(statemachine.Context{}, pipeline.SectorInfo{
-		Pieces: []api2.SectorPiece{
-			{
-				DealInfo: &api2.PieceDealInfo{
+		Pieces: []pipeline.SafeSectorPiece{
+			pipeline.SafePiece(api2.SectorPiece{
+				DealInfo: &piece.PieceDealInfo{
 					DealID:     dealId,
 					PublishCid: &pc,
 				},
 				Piece: abi.PieceInfo{
 					PieceCID: idCid("oldPieceCID"),
 				},
-			},
+			}),
 		},
 	})
 	require.NoError(t, err)

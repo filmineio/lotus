@@ -96,6 +96,7 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 var SupportedProofTypes = []abi.RegisteredSealProof{
 	abi.RegisteredSealProof_StackedDrg2KiBV1,
 	abi.RegisteredSealProof_StackedDrg8MiBV1,
+	abi.RegisteredSealProof_StackedDrg512MiBV1,
 }
 var ConsensusMinerMinPower = abi.NewStoragePower(2048)
 var PreCommitChallengeDelay = abi.ChainEpoch(10)

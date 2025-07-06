@@ -1,13 +1,14 @@
 # lotus-worker
+
 ```
 NAME:
    lotus-worker - Remote miner worker
 
 USAGE:
-   lotus-worker [global options] command [command options] [arguments...]
+   lotus-worker [global options] command [command options]
 
 VERSION:
-   1.32.1-dev
+   1.33.1-dev
 
 COMMANDS:
    run        Start lotus worker
@@ -27,12 +28,13 @@ GLOBAL OPTIONS:
 ```
 
 ## lotus-worker run
+
 ```
 NAME:
    lotus-worker run - Start lotus worker
 
 USAGE:
-   lotus-worker run [command options] [arguments...]
+   lotus-worker run [command options]
 
 DESCRIPTION:
    Run lotus-worker.
@@ -89,36 +91,39 @@ OPTIONS:
 ```
 
 ## lotus-worker stop
+
 ```
 NAME:
    lotus-worker stop - Stop a running lotus worker
 
 USAGE:
-   lotus-worker stop [command options] [arguments...]
+   lotus-worker stop [command options]
 
 OPTIONS:
    --help, -h  show help
 ```
 
 ## lotus-worker info
+
 ```
 NAME:
    lotus-worker info - Print worker info
 
 USAGE:
-   lotus-worker info [command options] [arguments...]
+   lotus-worker info [command options]
 
 OPTIONS:
    --help, -h  show help
 ```
 
 ## lotus-worker storage
+
 ```
 NAME:
    lotus-worker storage - manage sector storage
 
 USAGE:
-   lotus-worker storage command [command options] [arguments...]
+   lotus-worker storage command [command options]
 
 COMMANDS:
    attach     attach local storage path
@@ -131,12 +136,13 @@ OPTIONS:
 ```
 
 ### lotus-worker storage attach
+
 ```
 NAME:
    lotus-worker storage attach - attach local storage path
 
 USAGE:
-   lotus-worker storage attach [command options] [arguments...]
+   lotus-worker storage attach [command options]
 
 OPTIONS:
    --init                                 initialize the path first (default: false)
@@ -150,6 +156,7 @@ OPTIONS:
 ```
 
 ### lotus-worker storage detach
+
 ```
 NAME:
    lotus-worker storage detach - detach local storage path
@@ -163,12 +170,13 @@ OPTIONS:
 ```
 
 ### lotus-worker storage redeclare
+
 ```
 NAME:
    lotus-worker storage redeclare - redeclare sectors in a local storage path
 
 USAGE:
-   lotus-worker storage redeclare [command options] [arguments...]
+   lotus-worker storage redeclare [command options]
 
 OPTIONS:
    --id value      storage path ID
@@ -178,12 +186,13 @@ OPTIONS:
 ```
 
 ## lotus-worker resources
+
 ```
 NAME:
    lotus-worker resources - Manage resource table overrides
 
 USAGE:
-   lotus-worker resources [command options] [arguments...]
+   lotus-worker resources [command options]
 
 OPTIONS:
    --all       print all resource envvars (default: false)
@@ -192,12 +201,13 @@ OPTIONS:
 ```
 
 ## lotus-worker tasks
+
 ```
 NAME:
    lotus-worker tasks - Manage task processing
 
 USAGE:
-   lotus-worker tasks command [command options] [arguments...]
+   lotus-worker tasks command [command options]
 
 COMMANDS:
    enable   Enable a task type
@@ -209,6 +219,7 @@ OPTIONS:
 ```
 
 ### lotus-worker tasks enable
+
 ```
 NAME:
    lotus-worker tasks enable - Enable a task type
@@ -222,6 +233,7 @@ OPTIONS:
 ```
 
 ### lotus-worker tasks disable
+
 ```
 NAME:
    lotus-worker tasks disable - Disable a task type

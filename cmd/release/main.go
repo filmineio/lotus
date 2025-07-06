@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -94,12 +95,7 @@ func getBinaries(name string) []string {
 
 func isReleased(tag string) bool {
 	tags := getTags()
-	for _, t := range tags {
-		if t == tag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tags, tag)
 }
 
 func getPrefix(name string) string {
@@ -236,6 +232,8 @@ func main() {
 					},
 				},
 				Action: func(c *cli.Context) error {
+					lotusReleaseCliString := strings.Join(os.Args, " ")
+
 					// Read and validate the flag values
 					createOnGitHub := c.Bool("create-on-github")
 
@@ -285,8 +283,9 @@ func main() {
 						}
 					}
 
-					rc1Date := c.String("rc1-date")
 					releaseDateStringRegexp := regexp.MustCompile(releaseDateStringPattern)
+
+					rc1Date := c.String("rc1-date")
 					if rc1Date != "TBD" {
 						matches := releaseDateStringRegexp.FindStringSubmatch(rc1Date)
 						if matches == nil {
@@ -313,16 +312,17 @@ func main() {
 
 					// Prepare template data
 					data := map[string]any{
-						"CreateOnGitHub":                   createOnGitHub,
-						"Type":                             releaseType,
-						"Tag":                              releaseVersion.String(),
-						"NextTag":                          releaseVersion.IncPatch().String(),
-						"Level":                            releaseLevel,
-						"NetworkUpgrade":                   networkUpgrade,
-						"NetworkUpgradeDiscussionLink":     discussionLink,
-						"NetworkUpgradeChangelogEntryLink": changelogLink,
-						"RC1DateString":                    rc1Date,
-						"StableDateString":                 stableDate,
+						"ContentGeneratedWithLotusReleaseCli": true,
+						"LotusReleaseCliString":               lotusReleaseCliString,
+						"Type":                                releaseType,
+						"Tag":                                 releaseVersion.String(),
+						"NextTag":                             releaseVersion.IncPatch().String(),
+						"Level":                               releaseLevel,
+						"NetworkUpgrade":                      networkUpgrade,
+						"NetworkUpgradeDiscussionLink":        discussionLink,
+						"NetworkUpgradeChangelogEntryLink":    changelogLink,
+						"RC1DateString":                       rc1Date,
+						"StableDateString":                    stableDate,
 					}
 
 					// Render the issue template
@@ -346,12 +346,15 @@ func main() {
 					issueBody := issueBodyBuffer.String()
 
 					// Remove duplicate newlines before headers and list items since the templating leaves a lot extra newlines around.
-					// Extra newlines are present because go formatting control statements done within HTML comments rather than using {{- -}}.
+					// Extra newlines are present because go formatting control statements are done within HTML comments rather than using {{- -}}.
 					// HTML comments are used instead so that the template file parses as clean markdown on its own.
 					// In addition, HTML comments were also required within "ranges" in the template.
 					// Using HTML comments everywhere keeps things consistent.
-					re := regexp.MustCompile(`\n\n+([^#*\[\|])`)
-					issueBody = re.ReplaceAllString(issueBody, "\n$1")
+					// The one exception is after `</summary>` tags.  In that case we preserve the newlines,
+					// as without newlines the section doesn't do markdown formatting on GitHub.
+					// Since Go regexp doesn't support negative lookbehind, we just look for any non ">".
+					re := regexp.MustCompile(`([^>])\n\n+([^#*\[\|])`)
+					issueBody = re.ReplaceAllString(issueBody, "$1\n$2")
 
 					if !createOnGitHub {
 						// Create the URL-encoded parameters
@@ -379,6 +382,9 @@ URL to create issue:
 						_, _ = fmt.Fprintf(c.App.Writer, debugFormat, issueTitle, issueBody, issueURL)
 					} else {
 						// Set up the GitHub client
+						if os.Getenv("GITHUB_TOKEN") == "" {
+							return fmt.Errorf("GITHUB_TOKEN environment variable must be set when using --create-on-github")
+						}
 						client := github.NewClient(nil).WithAuthToken(os.Getenv("GITHUB_TOKEN"))
 
 						// Check if the issue already exists

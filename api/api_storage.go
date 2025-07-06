@@ -186,7 +186,7 @@ type StorageMiner interface {
 	//
 	// If allowFetch is set, list of paths to which the sector can be fetched will also be returned.
 	// - Paths which have sector files locally (don't require fetching) will be listed first.
-	// - Paths which have sector files locally will not be filtered based on based on AllowTypes/DenyTypes.
+	// - Paths which have sector files locally will not be filtered based on AllowTypes/DenyTypes.
 	// - Paths which require fetching will be filtered based on AllowTypes/DenyTypes. If multiple
 	//   file types are specified, each type will be considered individually, and a union of all paths
 	//   which can accommodate each file type will be returned.
@@ -215,7 +215,7 @@ type StorageMiner interface {
 	// in this instance.
 	RuntimeSubsystems(ctx context.Context) (MinerSubsystems, error) //perm:read
 
-	// CreateBackup creates node backup onder the specified file name. The
+	// CreateBackup creates node backup under the specified file name. The
 	// method requires that the lotus-miner is running with the
 	// LOTUS_BACKUP_BASE_PATH environment variable set to some path, and that
 	// the path specified when calling CreateBackup is within the base path

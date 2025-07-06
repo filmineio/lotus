@@ -90,7 +90,7 @@ type FullNode interface {
 	// Returns:
 	//   - *types.IndexValidation: A pointer to an IndexValidation struct containing the results of the validation/backfill.
 	//   - error: An error object if the validation/backfill fails. The error message will contain details about the index
-	//            corruption if the call fails because of an incosistency between indexed data and the actual chain state.
+	//            corruption if the call fails because of an inconsistency between indexed data and the actual chain state.
 	//            Note: The API returns an error if the index does not have data for the specified epoch and backfill is set to false.
 	ChainValidateIndex(ctx context.Context, epoch abi.ChainEpoch, backfill bool) (*types.IndexValidation, error) //perm:write
 
@@ -439,6 +439,8 @@ type FullNode interface {
 	// StateMinerRecoveries returns a bitfield indicating the recovering sectors of the given miner
 	StateMinerRecoveries(context.Context, address.Address, types.TipSetKey) (bitfield.BitField, error) //perm:read
 	// StateMinerPreCommitDepositForPower returns the precommit deposit for the specified miner's sector
+	// Note: The value returned is overestimated by 10% (multiplied by 110/100).
+	// See: node/impl/full/state.go StateMinerPreCommitDepositForPower implementation.
 	StateMinerPreCommitDepositForPower(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error) //perm:read
 	// StateMinerInitialPledgeCollateral attempts to calculate the initial pledge collateral based on a SectorPreCommitInfo.
 	// This method uses the DealIDs field in SectorPreCommitInfo to determine the amount of verified
@@ -446,6 +448,8 @@ type FullNode interface {
 	// the introduction of DDO, the DealIDs field can no longer be used to reliably determine verified
 	// deal space; therefore, this method is deprecated. Use StateMinerInitialPledgeForSector instead
 	// and pass in the verified deal space directly.
+	// Note: The value returned is overestimated by 10% (multiplied by 110/100).
+	// See: node/impl/full/state.go StateMinerInitialPledgeCollateral implementation.
 	//
 	// Deprecated: Use StateMinerInitialPledgeForSector instead.
 	StateMinerInitialPledgeCollateral(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error) //perm:read
@@ -453,8 +457,14 @@ type FullNode interface {
 	// duration, size, and combined size of any verified pieces within the sector. This calculation
 	// depends on current network conditions (total power, total pledge and current rewards) at the
 	// given tipset.
+	// Note: The value returned is overestimated by 10% (multiplied by 110/100).
+	// See: node/impl/full/state.go StateMinerInitialPledgeForSector implementation.
 	StateMinerInitialPledgeForSector(ctx context.Context, sectorDuration abi.ChainEpoch, sectorSize abi.SectorSize, verifiedSize uint64, tsk types.TipSetKey) (types.BigInt, error) //perm:read
-	// StateMinerAvailableBalance returns the portion of a miner's balance that can be withdrawn or spent
+	// StateMinerAvailableBalance returns the portion of a miner's balance that can be withdrawn or
+	// spent. It is calculated by subtracting the following from the miner actor's balance:
+	// * Locked vesting funds (accounting for vesting funds that should already be unlocked)
+	// * PreCommit deposits
+	// * Initial pledge collateral
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error) //perm:read
 	// StateMinerSectorAllocated checks if a sector number is marked as allocated.
 	StateMinerSectorAllocated(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (bool, error) //perm:read
@@ -600,6 +610,8 @@ type FullNode interface {
 	StateVerifiedRegistryRootKey(ctx context.Context, tsk types.TipSetKey) (address.Address, error) //perm:read
 	// StateDealProviderCollateralBounds returns the min and max collateral a storage provider
 	// can issue. It takes the deal size and verified status as parameters.
+	// Note: The min value returned is overestimated by 10% (multiplied by 110/100).
+	// See: node/impl/full/state.go StateDealProviderCollateralBounds implementation.
 	StateDealProviderCollateralBounds(context.Context, abi.PaddedPieceSize, bool, types.TipSetKey) (DealCollateralBounds, error) //perm:read
 
 	// StateCirculatingSupply returns the exact circulating supply of Filecoin at the given tipset.
@@ -768,6 +780,32 @@ type FullNode interface {
 	// MethodGroup: Eth
 	// These methods are used for Ethereum-compatible JSON-RPC calls
 	//
+	// ### Execution model reconciliation
+	//
+	// Ethereum relies on an immediate block-based execution model. The block that includes
+	// a transaction is also the block that executes it. Each block specifies the state root
+	// resulting from executing all transactions within it (output state).
+	//
+	// In Filecoin, at every epoch there is an unknown number of round winners all of whom are
+	// entitled to publish a block. Blocks are collected into a tipset. A tipset is committed
+	// only when the subsequent tipset is built on it (i.e. it becomes a parent). Block producers
+	// execute the parent tipset and specify the resulting state root in the block being produced.
+	// In other words, contrary to Ethereum, each block specifies the input state root.
+	//
+	// Ethereum clients expect transactions returned via eth_getBlock* to have a receipt
+	// (due to immediate execution). For this reason:
+	//
+	//   - eth_blockNumber returns the latest executed epoch (head - 1)
+	//   - The 'latest' block refers to the latest executed epoch (head - 1)
+	//   - The 'pending' block refers to the current speculative tipset (head)
+	//   - eth_getTransactionByHash returns the inclusion tipset of a message, but
+	//     only after it has executed.
+	//   - eth_getTransactionReceipt ditto.
+	//
+	// "Latest executed epoch" refers to the tipset that this node currently
+	// accepts as the best parent tipset, based on the blocks it is accumulating
+	// within the HEAD tipset.
+
 	// EthAccounts will always return [] since we don't expect Lotus to manage private keys
 	EthAccounts(ctx context.Context) ([]ethtypes.EthAddress, error) //perm:read
 	// EthAddressToFilecoinAddress converts an EthAddress into an f410 Filecoin Address
@@ -803,23 +841,23 @@ type FullNode interface {
 	// EthBlockNumber returns the height of the latest (heaviest) TipSet
 	EthBlockNumber(ctx context.Context) (ethtypes.EthUint64, error) //perm:read
 	// EthGetBlockTransactionCountByNumber returns the number of messages in the TipSet
-	EthGetBlockTransactionCountByNumber(ctx context.Context, blkNum ethtypes.EthUint64) (ethtypes.EthUint64, error) //perm:read
+	EthGetBlockTransactionCountByNumber(ctx context.Context, blkNum string) (ethtypes.EthUint64, error) //perm:read
 	// EthGetBlockTransactionCountByHash returns the number of messages in the TipSet
 	EthGetBlockTransactionCountByHash(ctx context.Context, blkHash ethtypes.EthHash) (ethtypes.EthUint64, error) //perm:read
 
-	EthGetBlockByHash(ctx context.Context, blkHash ethtypes.EthHash, fullTxInfo bool) (ethtypes.EthBlock, error)                                //perm:read
-	EthGetBlockByNumber(ctx context.Context, blkNum string, fullTxInfo bool) (ethtypes.EthBlock, error)                                         //perm:read
-	EthGetTransactionByHash(ctx context.Context, txHash *ethtypes.EthHash) (*ethtypes.EthTx, error)                                             //perm:read
-	EthGetTransactionByHashLimited(ctx context.Context, txHash *ethtypes.EthHash, limit abi.ChainEpoch) (*ethtypes.EthTx, error)                //perm:read
-	EthGetTransactionHashByCid(ctx context.Context, cid cid.Cid) (*ethtypes.EthHash, error)                                                     //perm:read
-	EthGetMessageCidByTransactionHash(ctx context.Context, txHash *ethtypes.EthHash) (*cid.Cid, error)                                          //perm:read
-	EthGetTransactionCount(ctx context.Context, sender ethtypes.EthAddress, blkParam ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) //perm:read
-	EthGetTransactionReceipt(ctx context.Context, txHash ethtypes.EthHash) (*EthTxReceipt, error)                                               //perm:read
-	EthGetBlockReceipts(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash) ([]*EthTxReceipt, error)                                   //perm:read
-	EthGetBlockReceiptsLimited(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash, limit abi.ChainEpoch) ([]*EthTxReceipt, error)      //perm:read
-	EthGetTransactionReceiptLimited(ctx context.Context, txHash ethtypes.EthHash, limit abi.ChainEpoch) (*EthTxReceipt, error)                  //perm:read
-	EthGetTransactionByBlockHashAndIndex(ctx context.Context, blkHash ethtypes.EthHash, txIndex ethtypes.EthUint64) (*ethtypes.EthTx, error)    //perm:read
-	EthGetTransactionByBlockNumberAndIndex(ctx context.Context, blkNum string, txIndex ethtypes.EthUint64) (*ethtypes.EthTx, error)             //perm:read
+	EthGetBlockByHash(ctx context.Context, blkHash ethtypes.EthHash, fullTxInfo bool) (ethtypes.EthBlock, error)                                    //perm:read
+	EthGetBlockByNumber(ctx context.Context, blkNum string, fullTxInfo bool) (ethtypes.EthBlock, error)                                             //perm:read
+	EthGetTransactionByHash(ctx context.Context, txHash *ethtypes.EthHash) (*ethtypes.EthTx, error)                                                 //perm:read
+	EthGetTransactionByHashLimited(ctx context.Context, txHash *ethtypes.EthHash, limit abi.ChainEpoch) (*ethtypes.EthTx, error)                    //perm:read
+	EthGetTransactionHashByCid(ctx context.Context, cid cid.Cid) (*ethtypes.EthHash, error)                                                         //perm:read
+	EthGetMessageCidByTransactionHash(ctx context.Context, txHash *ethtypes.EthHash) (*cid.Cid, error)                                              //perm:read
+	EthGetTransactionCount(ctx context.Context, sender ethtypes.EthAddress, blkParam ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error)     //perm:read
+	EthGetTransactionReceipt(ctx context.Context, txHash ethtypes.EthHash) (*ethtypes.EthTxReceipt, error)                                          //perm:read
+	EthGetBlockReceipts(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash) ([]*ethtypes.EthTxReceipt, error)                              //perm:read
+	EthGetBlockReceiptsLimited(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash, limit abi.ChainEpoch) ([]*ethtypes.EthTxReceipt, error) //perm:read
+	EthGetTransactionReceiptLimited(ctx context.Context, txHash ethtypes.EthHash, limit abi.ChainEpoch) (*ethtypes.EthTxReceipt, error)             //perm:read
+	EthGetTransactionByBlockHashAndIndex(ctx context.Context, blkHash ethtypes.EthHash, txIndex ethtypes.EthUint64) (*ethtypes.EthTx, error)        //perm:read
+	EthGetTransactionByBlockNumberAndIndex(ctx context.Context, blkNum string, txIndex ethtypes.EthUint64) (*ethtypes.EthTx, error)                 //perm:read
 
 	EthGetCode(ctx context.Context, address ethtypes.EthAddress, blkParam ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error)                                  //perm:read
 	EthGetStorageAt(ctx context.Context, address ethtypes.EthAddress, position ethtypes.EthBytes, blkParam ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) //perm:read
@@ -997,7 +1035,7 @@ type FullNode interface {
 	// it's enabled, and an error when disabled entirely.
 	F3IsRunning(ctx context.Context) (bool, error) //perm:read
 	// F3GetProgress returns the progress of the current F3 instance in terms of instance ID, round and phase.
-	F3GetProgress(ctx context.Context) (gpbft.Instant, error) //perm:read
+	F3GetProgress(ctx context.Context) (gpbft.InstanceProgress, error) //perm:read
 	// F3ListParticipants returns the list of miners that are currently participating in F3 via this node.
 	F3ListParticipants(ctx context.Context) ([]F3Participant, error) //perm:read
 }
@@ -1138,7 +1176,7 @@ type ChannelAvailableFunds struct {
 	// QueuedAmt is the amount that is queued up behind a pending request
 	QueuedAmt types.BigInt
 
-	// VoucherRedeemedAmt is the amount that is redeemed by vouchers on-chain
+	// VoucherReedeemedAmt is the amount that is redeemed by vouchers on-chain
 	// and in the local datastore
 	VoucherReedeemedAmt types.BigInt
 }
@@ -1364,6 +1402,7 @@ const (
 type Deadline struct {
 	PostSubmissions      bitfield.BitField
 	DisputableProofCount uint64
+	DailyFee             abi.TokenAmount
 }
 
 type Partition struct {
@@ -1417,20 +1456,4 @@ type HotGCOpts struct {
 	Moving    bool
 }
 
-type EthTxReceipt struct {
-	TransactionHash   ethtypes.EthHash     `json:"transactionHash"`
-	TransactionIndex  ethtypes.EthUint64   `json:"transactionIndex"`
-	BlockHash         ethtypes.EthHash     `json:"blockHash"`
-	BlockNumber       ethtypes.EthUint64   `json:"blockNumber"`
-	From              ethtypes.EthAddress  `json:"from"`
-	To                *ethtypes.EthAddress `json:"to"`
-	StateRoot         ethtypes.EthHash     `json:"root"`
-	Status            ethtypes.EthUint64   `json:"status"`
-	ContractAddress   *ethtypes.EthAddress `json:"contractAddress"`
-	CumulativeGasUsed ethtypes.EthUint64   `json:"cumulativeGasUsed"`
-	GasUsed           ethtypes.EthUint64   `json:"gasUsed"`
-	EffectiveGasPrice ethtypes.EthBigInt   `json:"effectiveGasPrice"`
-	LogsBloom         ethtypes.EthBytes    `json:"logsBloom"`
-	Logs              []ethtypes.EthLog    `json:"logs"`
-	Type              ethtypes.EthUint64   `json:"type"`
-}
+type EthTxReceipt = ethtypes.EthTxReceipt // Deprecated: use ethtypes.EthTxReceipt instead

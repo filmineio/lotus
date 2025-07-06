@@ -33,6 +33,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/lf3"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/journal"
+	"github.com/filecoin-project/lotus/metrics"
 	lotusminer "github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
@@ -289,7 +290,7 @@ func WindowPostScheduler(fc config.MinerFeeConfig, pc config.ProvingConfig) func
 		)
 
 		ctx := helpers.LifecycleCtx(mctx, lc)
-
+		ctx = metrics.AddNetworkTag(ctx)
 		fps, err := wdpost.NewWindowedPoStScheduler(api, fc, pc, as, sealer, verif, sealer, j, []dtypes.MinerAddress{params.Maddr})
 
 		if err != nil {
@@ -448,13 +449,10 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 				PreCommitBatchWait:  config.Duration(cfg.PreCommitBatchWait),
 				PreCommitBatchSlack: config.Duration(cfg.PreCommitBatchSlack),
 
-				AggregateCommits:           cfg.AggregateCommits,
-				MinCommitBatch:             cfg.MinCommitBatch,
-				MaxCommitBatch:             cfg.MaxCommitBatch,
-				CommitBatchWait:            config.Duration(cfg.CommitBatchWait),
-				CommitBatchSlack:           config.Duration(cfg.CommitBatchSlack),
-				AggregateAboveBaseFee:      types.FIL(cfg.AggregateAboveBaseFee),
-				BatchPreCommitAboveBaseFee: types.FIL(cfg.BatchPreCommitAboveBaseFee),
+				MinCommitBatch:   cfg.MinCommitBatch,
+				MaxCommitBatch:   cfg.MaxCommitBatch,
+				CommitBatchWait:  config.Duration(cfg.CommitBatchWait),
+				CommitBatchSlack: config.Duration(cfg.CommitBatchSlack),
 
 				TerminateBatchMax:                      cfg.TerminateBatchMax,
 				TerminateBatchMin:                      cfg.TerminateBatchMin,
@@ -498,13 +496,10 @@ func ToSealingConfig(dealmakingCfg config.DealmakingConfig, sealingCfg config.Se
 		PreCommitBatchWait:  time.Duration(sealingCfg.PreCommitBatchWait),
 		PreCommitBatchSlack: time.Duration(sealingCfg.PreCommitBatchSlack),
 
-		AggregateCommits:                       sealingCfg.AggregateCommits,
 		MinCommitBatch:                         sealingCfg.MinCommitBatch,
 		MaxCommitBatch:                         sealingCfg.MaxCommitBatch,
 		CommitBatchWait:                        time.Duration(sealingCfg.CommitBatchWait),
 		CommitBatchSlack:                       time.Duration(sealingCfg.CommitBatchSlack),
-		AggregateAboveBaseFee:                  types.BigInt(sealingCfg.AggregateAboveBaseFee),
-		BatchPreCommitAboveBaseFee:             types.BigInt(sealingCfg.BatchPreCommitAboveBaseFee),
 		MaxSectorProveCommitsSubmittedPerEpoch: sealingCfg.MaxSectorProveCommitsSubmittedPerEpoch,
 
 		TerminateBatchMax:  sealingCfg.TerminateBatchMax,

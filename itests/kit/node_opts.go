@@ -9,7 +9,6 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 
-	"github.com/filecoin-project/go-f3/manifest"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/wallet/key"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/config"
+	"github.com/filecoin-project/lotus/node/impl/full"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
@@ -81,7 +81,7 @@ var _ connmgr.ConnectionGater = (*loopbackConnGater)(nil)
 
 // DefaultNodeOpts are the default options that will be applied to test nodes.
 var DefaultNodeOpts = nodeOpts{
-	balance:    big.Mul(big.NewInt(100000000), types.NewInt(buildconstants.FilecoinPrecision)),
+	balance:    big.Mul(big.NewInt(10_000_000), types.NewInt(buildconstants.FilecoinPrecision)),
 	sectors:    DefaultPresealsPerBootstrapMiner,
 	sectorSize: abi.SectorSize(2 << 10), // 2KiB.
 
@@ -247,20 +247,26 @@ func MutateSealingConfig(mut func(sc *config.SealingConfig)) NodeOpt {
 		})))
 }
 
-// F3Enabled enables the F3 feature in the node. If the provided config is nil,
-// the feature is disabled.
-func F3Enabled(cfg *lf3.Config) NodeOpt {
-	if cfg == nil {
-		return ConstructorOpts(
-			node.Unset(new(*lf3.Config)),
-			node.Unset(new(manifest.ManifestProvider)),
-			node.Unset(new(*lf3.F3)),
-		)
-	}
+// F3Config sets the F3 configuration to be used by test node.
+func F3Config(cfg *lf3.Config) NodeOpt {
 	return ConstructorOpts(
 		node.Override(new(*lf3.Config), cfg),
-		node.Override(new(manifest.ManifestProvider), lf3.NewManifestProvider),
-		node.Override(new(*lf3.F3), lf3.New),
+	)
+}
+
+// F3Backend overrides the F3 backend implementation used by test node.
+func F3Backend(backend lf3.F3Backend) NodeOpt {
+	return ConstructorOpts(
+		node.Override(new(lf3.F3Backend), backend),
+	)
+}
+
+// F3Disabled disables the F3 subsystem for this node.
+func F3Disabled() NodeOpt {
+	return ConstructorOpts(
+		node.Unset(new(*lf3.Config)),
+		node.Unset(new(lf3.F3Backend)),
+		node.Unset(new(full.F3CertificateProvider)),
 	)
 }
 

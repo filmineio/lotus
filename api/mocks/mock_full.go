@@ -28,7 +28,7 @@ import (
 	auth "github.com/filecoin-project/go-jsonrpc/auth"
 	abi "github.com/filecoin-project/go-state-types/abi"
 	big "github.com/filecoin-project/go-state-types/big"
-	miner "github.com/filecoin-project/go-state-types/builtin/v13/miner"
+	miner "github.com/filecoin-project/go-state-types/builtin/v17/miner"
 	paych "github.com/filecoin-project/go-state-types/builtin/v8/paych"
 	miner0 "github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	verifreg "github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
@@ -736,10 +736,10 @@ func (mr *MockFullNodeMockRecorder) EthGetBlockByNumber(arg0, arg1, arg2 interfa
 }
 
 // EthGetBlockReceipts mocks base method.
-func (m *MockFullNode) EthGetBlockReceipts(arg0 context.Context, arg1 ethtypes.EthBlockNumberOrHash) ([]*api.EthTxReceipt, error) {
+func (m *MockFullNode) EthGetBlockReceipts(arg0 context.Context, arg1 ethtypes.EthBlockNumberOrHash) ([]*ethtypes.EthTxReceipt, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EthGetBlockReceipts", arg0, arg1)
-	ret0, _ := ret[0].([]*api.EthTxReceipt)
+	ret0, _ := ret[0].([]*ethtypes.EthTxReceipt)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -751,10 +751,10 @@ func (mr *MockFullNodeMockRecorder) EthGetBlockReceipts(arg0, arg1 interface{}) 
 }
 
 // EthGetBlockReceiptsLimited mocks base method.
-func (m *MockFullNode) EthGetBlockReceiptsLimited(arg0 context.Context, arg1 ethtypes.EthBlockNumberOrHash, arg2 abi.ChainEpoch) ([]*api.EthTxReceipt, error) {
+func (m *MockFullNode) EthGetBlockReceiptsLimited(arg0 context.Context, arg1 ethtypes.EthBlockNumberOrHash, arg2 abi.ChainEpoch) ([]*ethtypes.EthTxReceipt, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EthGetBlockReceiptsLimited", arg0, arg1, arg2)
-	ret0, _ := ret[0].([]*api.EthTxReceipt)
+	ret0, _ := ret[0].([]*ethtypes.EthTxReceipt)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -781,7 +781,7 @@ func (mr *MockFullNodeMockRecorder) EthGetBlockTransactionCountByHash(arg0, arg1
 }
 
 // EthGetBlockTransactionCountByNumber mocks base method.
-func (m *MockFullNode) EthGetBlockTransactionCountByNumber(arg0 context.Context, arg1 ethtypes.EthUint64) (ethtypes.EthUint64, error) {
+func (m *MockFullNode) EthGetBlockTransactionCountByNumber(arg0 context.Context, arg1 string) (ethtypes.EthUint64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EthGetBlockTransactionCountByNumber", arg0, arg1)
 	ret0, _ := ret[0].(ethtypes.EthUint64)
@@ -976,10 +976,10 @@ func (mr *MockFullNodeMockRecorder) EthGetTransactionHashByCid(arg0, arg1 interf
 }
 
 // EthGetTransactionReceipt mocks base method.
-func (m *MockFullNode) EthGetTransactionReceipt(arg0 context.Context, arg1 ethtypes.EthHash) (*api.EthTxReceipt, error) {
+func (m *MockFullNode) EthGetTransactionReceipt(arg0 context.Context, arg1 ethtypes.EthHash) (*ethtypes.EthTxReceipt, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EthGetTransactionReceipt", arg0, arg1)
-	ret0, _ := ret[0].(*api.EthTxReceipt)
+	ret0, _ := ret[0].(*ethtypes.EthTxReceipt)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -991,10 +991,10 @@ func (mr *MockFullNodeMockRecorder) EthGetTransactionReceipt(arg0, arg1 interfac
 }
 
 // EthGetTransactionReceiptLimited mocks base method.
-func (m *MockFullNode) EthGetTransactionReceiptLimited(arg0 context.Context, arg1 ethtypes.EthHash, arg2 abi.ChainEpoch) (*api.EthTxReceipt, error) {
+func (m *MockFullNode) EthGetTransactionReceiptLimited(arg0 context.Context, arg1 ethtypes.EthHash, arg2 abi.ChainEpoch) (*ethtypes.EthTxReceipt, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EthGetTransactionReceiptLimited", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*api.EthTxReceipt)
+	ret0, _ := ret[0].(*ethtypes.EthTxReceipt)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1321,10 +1321,10 @@ func (mr *MockFullNodeMockRecorder) F3GetOrRenewParticipationTicket(arg0, arg1, 
 }
 
 // F3GetProgress mocks base method.
-func (m *MockFullNode) F3GetProgress(arg0 context.Context) (gpbft.Instant, error) {
+func (m *MockFullNode) F3GetProgress(arg0 context.Context) (gpbft.InstanceProgress, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "F3GetProgress", arg0)
-	ret0, _ := ret[0].(gpbft.Instant)
+	ret0, _ := ret[0].(gpbft.InstanceProgress)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

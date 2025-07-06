@@ -179,7 +179,8 @@ Response:
 {
   "Version": "string value",
   "APIVersion": 131840,
-  "BlockDelay": 42
+  "BlockDelay": 42,
+  "Agent": "string value"
 }
 ```
 
@@ -400,7 +401,7 @@ Inputs:
   ],
   "Bw==",
   10101,
-  25
+  27
 ]
 ```
 
@@ -464,7 +465,7 @@ Response:
 
 
 ### CreateBackup
-CreateBackup creates node backup onder the specified file name. The
+CreateBackup creates node backup under the specified file name. The
 method requires that the lotus-miner is running with the
 LOTUS_BACKUP_BASE_PATH environment variable set to some path, and that
 the path specified when calling CreateBackup is within the base path
@@ -595,9 +596,73 @@ Inputs: `null`
 Response:
 ```json
 {
-  "Cids": null,
-  "Blocks": null,
-  "Height": 0
+  "Cids": [
+    {
+      "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+    }
+  ],
+  "Blocks": [
+    {
+      "Miner": "f01938223",
+      "Ticket": {
+        "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+      },
+      "ElectionProof": {
+        "WinCount": 1,
+        "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+      },
+      "BeaconEntries": [
+        {
+          "Round": 17133822,
+          "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+        },
+        {
+          "Round": 17133832,
+          "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+        }
+      ],
+      "WinPoStProof": [
+        {
+          "PoStProof": 3,
+          "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+        }
+      ],
+      "Parents": [
+        {
+          "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+        },
+        {
+          "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+        },
+        {
+          "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+        }
+      ],
+      "ParentWeight": "116013147118",
+      "Height": 4863283,
+      "ParentStateRoot": {
+        "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+      },
+      "ParentMessageReceipts": {
+        "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+      },
+      "Messages": {
+        "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+      },
+      "BLSAggregate": {
+        "Type": 2,
+        "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+      },
+      "Timestamp": 1744204890,
+      "BlockSig": {
+        "Type": 2,
+        "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+      },
+      "ForkSignaling": 0,
+      "ParentBaseFee": "20592036"
+    }
+  ],
+  "Height": 4863283
 }
 ```
 
@@ -2243,7 +2308,7 @@ StorageFindSector returns list of paths where the specified sector files exist.
 
 If allowFetch is set, list of paths to which the sector can be fetched will also be returned.
 - Paths which have sector files locally (don't require fetching) will be listed first.
-- Paths which have sector files locally will not be filtered based on based on AllowTypes/DenyTypes.
+- Paths which have sector files locally will not be filtered based on AllowTypes/DenyTypes.
 - Paths which require fetching will be filtered based on AllowTypes/DenyTypes. If multiple
   file types are specified, each type will be considered individually, and a union of all paths
   which can accommodate each file type will be returned.

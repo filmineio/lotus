@@ -4,6 +4,7 @@
 package buildconstants
 
 import (
+	_ "embed"
 	"math"
 	"os"
 	"strconv"
@@ -43,7 +44,7 @@ const UpgradeSmokeHeight abi.ChainEpoch = 51000
 const UpgradeIgnitionHeight abi.ChainEpoch = 94000
 const UpgradeRefuelHeight abi.ChainEpoch = 130800
 
-const UpgradeAssemblyHeight abi.ChainEpoch = 138720
+var UpgradeAssemblyHeight abi.ChainEpoch = 138720
 
 const UpgradeTapeHeight abi.ChainEpoch = 140760
 
@@ -99,8 +100,17 @@ const UpgradeThunderHeight abi.ChainEpoch = UpgradeLightningHeight + 2880*21
 // 2023-12-12T13:30:00Z
 const UpgradeWatermelonHeight abi.ChainEpoch = 3469380
 
+// This fix upgrade only ran on calibrationnet
+const UpgradeWatermelonFixHeight abi.ChainEpoch = -1
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeWatermelonFix2Height abi.ChainEpoch = -2
+
 // 2024-04-24T14:00:00Z
 const UpgradeDragonHeight abi.ChainEpoch = 3855360
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeCalibrationDragonFixHeight abi.ChainEpoch = -3
 
 // This epoch, 120 epochs after the "rest" of the nv22 upgrade, is when we switch to Drand quicknet
 // 2024-04-11T15:00:00Z
@@ -113,27 +123,26 @@ const UpgradeWaffleHeight abi.ChainEpoch = 4154640
 // var because of TestMigrationNV24 in itests/migration_test.go to test the FIP-0081 pledge ramp
 var UpgradeTuktukHeight abi.ChainEpoch = 4461240
 
-// ??????
-var UpgradeTeepHeight = abi.ChainEpoch(9999999999)
-
 // FIP-0081: for the power actor state for pledge calculations.
 // UpgradeTuktukPowerRampDurationEpochs ends up in the power actor state after
 // Tuktuk migration. along with a RampStartEpoch matching the upgrade height.
 var UpgradeTuktukPowerRampDurationEpochs = uint64(builtin.EpochsInYear)
 
-// This fix upgrade only ran on calibrationnet
-const UpgradeWatermelonFixHeight abi.ChainEpoch = -1
+// 2025-04-14T23:00:00Z
+var UpgradeTeepHeight = abi.ChainEpoch(4878840)
 
-// This fix upgrade only ran on calibrationnet
-const UpgradeWatermelonFix2Height abi.ChainEpoch = -2
+// This epoch, 90 days after Teep is the completion of FIP-0100 where actors will start applying
+// the new daily fee to pre-Teep sectors being extended.
+var UpgradeTockHeight = UpgradeTeepHeight + builtin.EpochsInDay*90
 
-// This fix upgrade only ran on calibrationnet
-const UpgradeCalibrationDragonFixHeight abi.ChainEpoch = -3
+// Only applied to calibnet which was already upgraded to Teep&Tock
+var UpgradeTockFixHeight = abi.ChainEpoch(-1)
 
-var SupportedProofTypes = []abi.RegisteredSealProof{
-	abi.RegisteredSealProof_StackedDrg32GiBV1,
-	abi.RegisteredSealProof_StackedDrg64GiBV1,
-}
+// ??????
+var UpgradeXxHeight = abi.ChainEpoch(9999999999)
+
+var UpgradeTeepInitialFilReserved = InitialFilReserved // FIP-0100: no change for mainnet
+
 var ConsensusMinerMinPower = abi.NewStoragePower(10 << 40)
 var PreCommitChallengeDelay = abi.ChainEpoch(150)
 var PropagationDelaySecs = uint64(10)
@@ -149,8 +158,8 @@ func init() {
 	}
 	SetAddressNetwork(addrNetwork)
 
-	if os.Getenv("LOTUS_DISABLE_TEEP") == "1" {
-		UpgradeTeepHeight = math.MaxInt64 - 1
+	if os.Getenv("LOTUS_DISABLE_XX") == "1" {
+		UpgradeXxHeight = math.MaxInt64 - 1
 	}
 
 	// NOTE: DO NOT change this unless you REALLY know what you're doing. This is not consensus critical, however,
@@ -185,11 +194,7 @@ const Eip155ChainId = 314
 // WhitelistedBlock skips checks on message validity in this block to sidestep the zero-bls signature
 var WhitelistedBlock = cid.MustParse("bafy2bzaceapyg2uyzk7vueh3xccxkuwbz3nxewjyguoxvhx77malc2lzn2ybi")
 
-// The F3 manifest server ID, if any.
-var F3ManifestServerID = MustParseID("12D3KooWENMwUF9YxvQxar7uBWJtZkA6amvK4xWmKXfSiHUo2Qq7")
-
-// The initial F3 power table CID.
-var F3InitialPowerTableCID = cid.Undef
-
 const F3Enabled = true
-const F3BootstrapEpoch abi.ChainEpoch = -1
+
+//go:embed f3manifest_mainnet.json
+var F3ManifestBytes []byte

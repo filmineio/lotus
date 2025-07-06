@@ -38,10 +38,13 @@ func BuildTypeString() string {
 
 var Devnet = true
 
+// The agent string used by the node and reported to other nodes in the network.
+const UserAgent = "lotus"
+
 // Used by tests and some obscure tooling
 /* inline-gen template
 const TestNetworkVersion = network.Version{{.latestNetworkVersion}}
 /* inline-gen start */
-const TestNetworkVersion = network.Version25
+const TestNetworkVersion = network.Version27
 
 /* inline-gen end */

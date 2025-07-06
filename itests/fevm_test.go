@@ -45,7 +45,6 @@ func inputDataFromArray(input []byte) []byte {
 func inputDataFromFrom(ctx context.Context, t *testing.T, client *kit.TestFullNode, from address.Address) []byte {
 	fromId, err := client.StateLookupID(ctx, from, types.EmptyTSK)
 	require.NoError(t, err)
-
 	senderEthAddr, err := ethtypes.EthAddressFromFilecoinAddress(fromId)
 	require.NoError(t, err)
 	inputData := make([]byte, 32)
@@ -427,7 +426,7 @@ func TestFEVMTestSendToContract(t *testing.T) {
 	_, _, err = client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "destroy()", []byte{})
 	require.NoError(t, err)
 
-	finalBalanceMinimum := types.FromFil(uint64(99_999_999)) // 100 million FIL - 1 FIL for gas upper bounds
+	finalBalanceMinimum := types.FromFil(uint64(9_999_999)) // 10 million FIL - 1 FIL for gas upper bounds
 	finalBal, err := client.WalletBalance(ctx, client.DefaultKey.Address)
 	require.NoError(t, err)
 	require.Equal(t, true, finalBal.GreaterThan(finalBalanceMinimum))
@@ -487,7 +486,7 @@ func TestFEVMSendGasLimit(t *testing.T) {
 
 }
 
-// TestFEVMDelegateCall deploys the two contracts in TestFEVMDelegateCall but instead of A calling B, A calls A which should cause A to cause A in an infinite loop and should give a reasonable error
+// TestFEVMDelegateCallRecursiveFail deploys the two contracts in TestFEVMDelegateCall but instead of A calling B, A calls A which should cause A to cause A in an infinite loop and should give a reasonable error
 func TestFEVMDelegateCallRecursiveFail(t *testing.T) {
 	// TODO change the gas limit of this invocation and confirm that the number of errors is
 	// different
@@ -513,7 +512,7 @@ func TestFEVMDelegateCallRecursiveFail(t *testing.T) {
 	require.NotContains(t, err.Error(), errorAny)
 }
 
-// TestFEVMTestSendValueThroughContracts creates A and B contract and exchanges value
+// TestFEVMTestSendValueThroughContractsAndDestroy creates A and B contract and exchanges value
 // and self destructs and accounts for value sent
 func TestFEVMTestSendValueThroughContractsAndDestroy(t *testing.T) {
 
@@ -733,7 +732,7 @@ func TestFEVMRecursiveActorCallEstimate(t *testing.T) {
 	t.Run("n=100", testN(100))
 }
 
-// TestFEVM deploys a contract while sending value to it
+// TestFEVMDeployWithValue deploys a contract while sending value to it
 func TestFEVMDeployWithValue(t *testing.T) {
 	ctx, cancel, client := kit.SetupFEVMTest(t)
 	defer cancel()
@@ -858,7 +857,7 @@ func TestFEVMBareTransferTriggersSmartContractLogic(t *testing.T) {
 
 	hash := client.EVM().SubmitTransaction(ctx, &tx)
 
-	var receipt *api.EthTxReceipt
+	var receipt *ethtypes.EthTxReceipt
 	for i := 0; i < 1000; i++ {
 		receipt, err = client.EthGetTransactionReceipt(ctx, hash)
 		require.NoError(t, err)
@@ -1144,7 +1143,7 @@ func TestEthGetBlockReceipts(t *testing.T) {
 	}
 
 	// Wait for the transactions to be mined
-	var lastReceipt *api.EthTxReceipt
+	var lastReceipt *ethtypes.EthTxReceipt
 	for _, hash := range hashes {
 		receipt, err := client.EVM().WaitTransaction(ctx, hash)
 		require.NoError(t, err)
@@ -1185,6 +1184,17 @@ func TestEthGetBlockReceipts(t *testing.T) {
 	gethBlockReceipts, err := client.EthGetBlockReceipts(ctx, req)
 	require.NoError(t, err)
 	require.Len(t, gethBlockReceipts, 3)
+
+	t.Run("EthGetBlockReceiptsLimited", func(t *testing.T) {
+		// just to be sure we're far enough in the chain for the limit to work
+		client.WaitTillChain(ctx, kit.HeightAtLeast(10))
+		// request epoch 2
+		bn := ethtypes.EthUint64(2)
+		// limit to 5 epochs lookback
+		blockReceipts, err := client.EthGetBlockReceiptsLimited(ctx, ethtypes.EthBlockNumberOrHash{BlockNumber: &bn}, 5)
+		require.ErrorContains(t, err, "older than the allowed")
+		require.Nil(t, blockReceipts, "should not return any receipts")
+	})
 }
 
 func deployContractWithEth(ctx context.Context, t *testing.T, client *kit.TestFullNode, ethAddr ethtypes.EthAddress,
@@ -1451,7 +1461,7 @@ func TestEthGetTransactionByBlockHashAndIndexAndNumber(t *testing.T) {
 	kit.SendFunds(ctx, t, client, ethFilAddr, types.FromFil(10))
 
 	var txHashes []ethtypes.EthHash
-	var receipts []*api.EthTxReceipt
+	var receipts []*ethtypes.EthTxReceipt
 	numTx := 3
 
 	contractHex, err := os.ReadFile("./contracts/MultipleEvents.hex")
@@ -1542,7 +1552,7 @@ func TestEthGetTransactionByBlockHashAndIndexAndNumber(t *testing.T) {
 		invalidBlockHash := ethtypes.EthHash{1}
 		_, err = client.EthGetTransactionByBlockHashAndIndex(ctx, invalidBlockHash, ethtypes.EthUint64(0))
 		require.Error(t, err)
-		require.ErrorContains(t, err, "failed to get tipset by cid")
+		require.ErrorContains(t, err, "failed to get tipset by hash")
 
 		// 2. Invalid block number
 		_, err = client.EthGetTransactionByBlockNumberAndIndex(ctx, (blockNumber + 1000).Hex(), ethtypes.EthUint64(0))
@@ -1788,4 +1798,58 @@ func TestFEVMEamCreateTwiceFail(t *testing.T) {
 	req.EqualValues(wait.Height-1, traces[2].BlockNumber)
 	req.Equal("create", traces[2].EthTrace.Type)
 	req.Contains(traces[2].EthTrace.Error, "ErrForbidden")
+}
+
+func TestTstore(t *testing.T) {
+	nv25epoch := abi.ChainEpoch(100)
+	upgradeSchedule := kit.UpgradeSchedule(
+		stmgr.Upgrade{
+			Network: network.Version24,
+			Height:  -1,
+		},
+		stmgr.Upgrade{
+			Network:   network.Version25,
+			Height:    nv25epoch,
+			Migration: filcns.UpgradeActorsV16,
+		},
+	)
+
+	ctx, cancel, client := kit.SetupFEVMTest(t, upgradeSchedule)
+	defer cancel()
+
+	// try to deploy the contract before the upgrade, expect an error somewhere' in deploy or in call,
+	// if the error is in deploy we may need to implement DeployContractFromFilename here where we can
+	// assert an error
+
+	filenameActor := "contracts/TransientStorageTest.hex"
+	fromAddr, contractAddr := client.EVM().DeployContractFromFilename(ctx, filenameActor)
+
+	inputData := make([]byte, 0)
+	_, _, err := client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "runTests()", inputData)
+	// We expect an error here due to TSTORE not being available in this network version
+	require.ErrorContains(t, err, "undefined instruction (35)")
+
+	client.WaitTillChain(ctx, kit.HeightAtLeast(nv25epoch+5))
+
+	// wait for the upgrade
+
+	//Step 1 initial reentry test
+	// should be able to deploy and call the contract now
+	_, _, err = client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "runTests()", inputData)
+	require.NoError(t, err)
+
+	//Step 2 subsequent transaction to confirm the transient data was reset
+	_, _, err = client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "testLifecycleValidationSubsequentTransaction()", inputData)
+	require.NoError(t, err)
+
+	fromAddr, contractAddr2 := client.EVM().DeployContractFromFilename(ctx, filenameActor)
+	inputDataContract := inputDataFromFrom(ctx, t, client, contractAddr2)
+
+	//Step 3 test reentry from multiple contracts in a transaction
+	_, _, err = client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "testReentry(address)", inputDataContract)
+	require.NoError(t, err)
+
+	//Step 4 test tranisent data from nested contract calls
+	_, _, err = client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "testNestedContracts(address)", inputDataContract)
+	require.NoError(t, err)
 }

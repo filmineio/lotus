@@ -52,7 +52,7 @@ Use `MpoolPushMessage` instead.
 ### MpoolSub
 
 Returns a channel to receive notifications about updates to the message pool.
-Note that the context *must* be cancelled when the caller is done with the subscription.
+Note that the context *must* be canceled when the caller is done with the subscription.
 
 ### MpoolGetConfig
 
@@ -70,7 +70,7 @@ This should be used with extreme care and only in the case of errors during head
 would leave the mpool in an inconsistent state.
 
 
-## Command Line Interfae
+## Command Line Interface
 
 The lotus command line interface defines an `mpool` command which
 allows a user to interact with the mpool.
@@ -111,11 +111,11 @@ Gets or sets the current mpool configuration.
 Unconditionally clears pending messages from the mpool.
 If the `--local` flag is passed, then local messages are also cleared; otherwise local messages are retained.
 
-*Warning*: this command should only be used in the case of head change errors leaving the mpool in an  state.
+*Warning*: this command should only be used in the case of head change errors leaving the mpool in a state.
 
 ## Configuration
 
-The mpool a few parameters that can be configured by the user, either through the API
+The mpool has a few parameters that can be configured by the user, either through the API
 or the command line interface.
 
 The config struct is defined as follows:
@@ -139,7 +139,7 @@ The meaning of these fields is as follows:
   Default is empty.
 - `SizeLimitHigh` -- this is the maximum number of pending messages before triggering a
   prune in the message pool. Note that messages from priority addresses are never pruned.
-  Defafult is 30000.
+  Default is 30000.
 - `SizeLimitLow` -- this is the number of pending messages that should be kept after a prune.
   Default is 20000.
 - `ReplaceByFeeRatio` -- this is the gas fee ratio for replacing messages in the mpool.
@@ -172,5 +172,5 @@ selection algorithm is used instead that simply picks dependent chains of
 maximum reward.  Note that pending message chains from priority addresses
 are always selected, regardless of their profitability.
 
-For algorithm details, please prefer to the implementation in
+For algorithm details, please refer to the implementation in
 `chain/messagepool/selection.go`.

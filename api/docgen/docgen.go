@@ -1,6 +1,7 @@
 package docgen
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -38,6 +39,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	"github.com/filecoin-project/lotus/api/v0api"
+	"github.com/filecoin-project/lotus/api/v2api"
 	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
@@ -88,6 +90,13 @@ func init() {
 	ExampleValues[reflect.TypeOf(addr)] = addr
 	ExampleValues[reflect.TypeOf(&addr)] = &addr
 
+	var ts types.TipSet
+	err = json.Unmarshal(tipsetSampleJson, &ts)
+	if err != nil {
+		panic(err)
+	}
+	addExample(&ts)
+
 	pid, err := peer.Decode("12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf")
 	if err != nil {
 		panic(err)
@@ -105,15 +114,18 @@ func init() {
 	addExample(f3Lease)
 	addExample(&f3Lease)
 
-	f3Cert := certs.FinalityCertificate{
-		GPBFTInstance: 0,
-		ECChain: []gpbft.TipSet{
+	ecchain := &gpbft.ECChain{
+		TipSets: []*gpbft.TipSet{
 			{
 				Epoch:      0,
 				Key:        tsk.Bytes(),
 				PowerTable: c,
 			},
 		},
+	}
+	f3Cert := certs.FinalityCertificate{
+		GPBFTInstance: 0,
+		ECChain:       ecchain,
 		SupplementalData: gpbft.SupplementalData{
 			PowerTable: c,
 		},
@@ -177,6 +189,12 @@ func init() {
 	addExample(abi.ActorID(1000))
 	addExample(map[string]types.Actor{
 		"t01236": ExampleValue("init", reflect.TypeOf(types.Actor{}), nil).(types.Actor),
+	})
+	addExample(types.IpldOpGet)
+	addExample(&types.TraceIpld{
+		Op:   types.IpldOpGet,
+		Cid:  c,
+		Size: 123,
 	})
 	addExample(&types.ExecutionTrace{
 		Msg:    ExampleValue("init", reflect.TypeOf(types.MessageTrace{}), nil).(types.MessageTrace),
@@ -457,6 +475,15 @@ func init() {
 	addExample(&manifest.Manifest{})
 	addExample(gpbft.NetworkName("filecoin"))
 	addExample(gpbft.ActorID(1000))
+	addExample(gpbft.InstanceProgress{
+		Instant: gpbft.Instant{
+			ID:    1413,
+			Round: 1,
+			Phase: gpbft.COMMIT_PHASE,
+		},
+		Input: ecchain,
+	})
+	addExample(types.TipSetSelectors.Finalized)
 }
 
 func GetAPIType(name, pkg string) (i interface{}, t reflect.Type, permStruct []reflect.Type) {
@@ -494,6 +521,23 @@ func GetAPIType(name, pkg string) (i interface{}, t reflect.Type, permStruct []r
 			permStruct = append(permStruct, reflect.TypeOf(v0api.FullNodeStruct{}.Internal))
 			permStruct = append(permStruct, reflect.TypeOf(v0api.CommonStruct{}.Internal))
 			permStruct = append(permStruct, reflect.TypeOf(v0api.NetStruct{}.Internal))
+		case "Gateway":
+			i = &v0api.GatewayStruct{}
+			t = reflect.TypeOf(new(struct{ v0api.Gateway })).Elem()
+			permStruct = append(permStruct, reflect.TypeOf(v0api.GatewayStruct{}.Internal))
+		default:
+			panic("unknown type")
+		}
+	case "v2api":
+		switch name {
+		case "FullNode":
+			i = &v2api.FullNodeStruct{}
+			t = reflect.TypeOf(new(struct{ v2api.FullNode })).Elem()
+			permStruct = append(permStruct, reflect.TypeOf(v2api.FullNodeStruct{}.Internal))
+		case "Gateway":
+			i = &v2api.GatewayStruct{}
+			t = reflect.TypeOf(new(struct{ v2api.Gateway })).Elem()
+			permStruct = append(permStruct, reflect.TypeOf(v2api.GatewayStruct{}.Internal))
 		default:
 			panic("unknown type")
 		}
@@ -806,3 +850,6 @@ func MethodGroupFromName(mn string) string {
 	}
 	return mn[:i+1]
 }
+
+//go:embed tipset.json
+var tipsetSampleJson []byte

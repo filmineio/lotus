@@ -4,10 +4,7 @@
 package buildconstants
 
 import (
-	"math/big"
 	"os"
-
-	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -20,7 +17,6 @@ import (
 // Consensus / Network
 
 func init() {
-	policy.SetSupportedProofTypes(SupportedProofTypes...)
 	policy.SetConsensusMinerMinPower(ConsensusMinerMinPower)
 	policy.SetPreCommitChallengeDelay(PreCommitChallengeDelay)
 }
@@ -60,33 +56,14 @@ const AddressMainnetEnvVar = "_mainnet_"
 var ZeroAddress = MustParseAddress("f3yaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaby2smx7a")
 
 const FilBase = uint64(2_000_000_000)
-const FilAllocStorageMining = uint64(1_100_000_000)
-
 const FilecoinPrecision = uint64(1_000_000_000_000_000_000)
-const FilReserved = uint64(300_000_000)
 
-var InitialRewardBalance *big.Int
-var InitialFilReserved *big.Int
+var InitialRewardBalance = wholeFIL(1_100_000_000)
+var InitialFilReserved = wholeFIL(300_000_000)
 
 func init() {
-	InitialRewardBalance = big.NewInt(int64(FilAllocStorageMining))
-	InitialRewardBalance = InitialRewardBalance.Mul(InitialRewardBalance, big.NewInt(int64(FilecoinPrecision)))
-
-	InitialFilReserved = big.NewInt(int64(FilReserved))
-	InitialFilReserved = InitialFilReserved.Mul(InitialFilReserved, big.NewInt(int64(FilecoinPrecision)))
-
 	if os.Getenv("LOTUS_ADDRESS_TYPE") == AddressMainnetEnvVar {
 		SetAddressNetwork(address.Mainnet)
-	}
-
-	if ptCid := os.Getenv("F3_INITIAL_POWERTABLE_CID"); ptCid != "" {
-		if k, err := cid.Parse(ptCid); err != nil {
-			log.Errorf("failed to parse F3_INITIAL_POWERTABLE_CID %q: %s", ptCid, err)
-		} else if F3InitialPowerTableCID.Defined() && k != F3InitialPowerTableCID {
-			log.Errorf("ignoring F3_INITIAL_POWERTABLE_CID as lotus has a hard-coded initial F3 power table")
-		} else {
-			F3InitialPowerTableCID = k
-		}
 	}
 }
 
@@ -114,3 +91,18 @@ const InitialBaseFee int64 = 100e6
 const MinimumBaseFee int64 = 100
 const PackingEfficiencyNum int64 = 4
 const PackingEfficiencyDenom int64 = 5
+
+// SafeHeightDistance is the distance from the latest tipset, i.e. heaviest, that
+// is considered to be safe from re-orgs at an increasingly diminishing
+// probability.
+//
+// This is used to determine the safe tipset when using the "safe" tag in
+// TipSetSelector or via Eth JSON-RPC APIs. Note that "safe" doesn't guarantee
+// finality, but rather a high probability of not being reverted. For guaranteed
+// finality, use the "finalized" tag.
+//
+// This constant is experimental and may change in the future.
+// Discussion on this current value and a tracking item to document the
+// probabilistic impact of various values is in
+// https://github.com/filecoin-project/go-f3/issues/944
+const SafeHeightDistance abi.ChainEpoch = 200

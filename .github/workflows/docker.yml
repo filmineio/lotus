@@ -11,6 +11,8 @@ on:
       - master
       - release/v*
       - release/miner/v*
+    paths-ignore:
+      - '**/*.md'
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
@@ -41,6 +43,7 @@ jobs:
           - butterflynet
           - calibnet
           - debug
+          - 2k
         include:
           - image: lotus
             network: mainnet

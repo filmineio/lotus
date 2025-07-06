@@ -57,6 +57,7 @@ func NewActorRegistry() *vm.ActorRegistry {
 	inv.Register(actorstypes.Version14, vm.ActorsVersionPredicate(actorstypes.Version14), builtin.MakeRegistry(actorstypes.Version14))
 	inv.Register(actorstypes.Version15, vm.ActorsVersionPredicate(actorstypes.Version15), builtin.MakeRegistry(actorstypes.Version15))
 	inv.Register(actorstypes.Version16, vm.ActorsVersionPredicate(actorstypes.Version16), builtin.MakeRegistry(actorstypes.Version16))
+	inv.Register(actorstypes.Version17, vm.ActorsVersionPredicate(actorstypes.Version17), builtin.MakeRegistry(actorstypes.Version17))
 
 	return inv
 }
@@ -194,7 +195,7 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context,
 		}
 	}
 
-	vmEarly := partDone()
+	vmEarlyDuration := partDone()
 	earlyCronGas := cronGas
 	cronGas = 0
 	partDone = metrics.Timer(ctx, metrics.VMApplyMessages)
@@ -258,14 +259,14 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context,
 		}
 	}
 
-	vmMsg := partDone()
+	vmMsgDuration := partDone()
 	partDone = metrics.Timer(ctx, metrics.VMApplyCron)
 
 	if err := runCron(vmi, epoch); err != nil {
 		return cid.Cid{}, cid.Cid{}, err
 	}
 
-	vmCron := partDone()
+	vmCronDuration := partDone()
 	partDone = metrics.Timer(ctx, metrics.VMApplyFlush)
 
 	rectarr := blockadt.MakeEmptyArray(sm.ChainStore().ActorStore(ctx))
@@ -301,13 +302,32 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context,
 		return cid.Undef, cid.Undef, xerrors.Errorf("vm flush failed: %w", err)
 	}
 
-	vmFlush := partDone()
+	vmFlushDuration := partDone()
 	partDone = func() time.Duration { return time.Duration(0) }
 
-	log.Infow("ApplyBlocks stats", "early", vmEarly, "earlyCronGas", earlyCronGas, "vmMsg", vmMsg, "msgGas", msgGas, "vmCron", vmCron, "cronGas", cronGas, "vmFlush", vmFlush, "epoch", epoch, "tsk", ts.Key())
+	log.Infow(
+		"ApplyBlocks stats",
+		"earlyMs", vmEarlyDuration.Milliseconds(),
+		"earlyCronGas", earlyCronGas,
+		"vmMsgMs", vmMsgDuration.Milliseconds(),
+		"msgGas", msgGas,
+		"vmCronMs", vmCronDuration.Milliseconds(),
+		"cronGas", cronGas,
+		"vmFlushMs", vmFlushDuration.Milliseconds(),
+		"totalMs", (vmEarlyDuration + vmMsgDuration + vmCronDuration + vmFlushDuration).Milliseconds(),
+		"totalGas", earlyCronGas+msgGas+cronGas,
+		"epoch", epoch,
+		"tsk", ts.Key(),
+	)
 
-	stats.Record(ctx, metrics.VMSends.M(int64(atomic.LoadUint64(&vm.StatSends))),
-		metrics.VMApplied.M(int64(atomic.LoadUint64(&vm.StatApplied))))
+	stats.Record(ctx,
+		metrics.VMSends.M(int64(atomic.LoadUint64(&vm.StatSends))),
+		metrics.VMApplied.M(int64(atomic.LoadUint64(&vm.StatApplied))),
+		metrics.VMApplyBlocksTotalGas.M(earlyCronGas+msgGas+cronGas),
+		metrics.VMApplyEarlyGas.M(earlyCronGas),
+		metrics.VMApplyMessagesGas.M(msgGas),
+		metrics.VMApplyCronGas.M(cronGas),
+	)
 
 	return st, rectroot, nil
 }

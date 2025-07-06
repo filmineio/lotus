@@ -117,7 +117,6 @@ func (s *WindowPoStScheduler) startSubmitPoST(
 	posts []miner.SubmitWindowedPoStParams,
 	completeSubmitPoST CompleteSubmitPoSTCb,
 ) context.CancelFunc {
-
 	ctx, abort := context.WithCancel(ctx)
 	go func() {
 		defer abort()
@@ -276,7 +275,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 	log := log.WithOptions(zap.Fields(zap.Time("cycle", start)))
 	log.Infow("starting PoSt cycle", "manual", manual, "ts", ts, "deadline", di.Index)
 	defer func() {
-		log.Infow("post cycle done", "took", time.Now().Sub(start))
+		log.Infow("post cycle done", "took", time.Since(start))
 	}()
 
 	if !manual {
@@ -546,12 +545,8 @@ func (s *WindowPoStScheduler) BatchPartitions(partitions []api.Partition, nv net
 	}
 
 	// Also respect the AddressedPartitionsMax (which is the same as DeclarationsMax (which is all really just MaxPartitionsPerDeadline))
-	declMax, err := policy.GetDeclarationsMax(nv)
-	if err != nil {
-		return nil, xerrors.Errorf("getting max declarations: %w", err)
-	}
-	if partitionsPerMsg > declMax {
-		partitionsPerMsg = declMax
+	if partitionsPerMsg > policy.DeclarationsMax {
+		partitionsPerMsg = policy.DeclarationsMax
 	}
 
 	// respect user config if set

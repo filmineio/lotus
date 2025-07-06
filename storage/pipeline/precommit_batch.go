@@ -196,20 +196,15 @@ func (b *PreCommitBatcher) maybeStartBatch(notif bool) ([]sealiface.PreCommitBat
 		return nil, err
 	}
 
-	curBasefeeLow := false
-	if !cfg.BatchPreCommitAboveBaseFee.Equals(big.Zero()) && ts.MinTicketBlock().ParentBaseFee.LessThan(cfg.BatchPreCommitAboveBaseFee) {
-		curBasefeeLow = true
+	nv, err := b.api.StateNetworkVersion(b.mctx, ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("couldn't get network version: %w", err)
 	}
 
 	// if this wasn't an user-forced batch, and we're not at/above the max batch size,
 	// and we're not above the basefee threshold, don't batch yet
-	if notif && total < cfg.MaxPreCommitBatch && !curBasefeeLow {
+	if notif && total < cfg.MaxPreCommitBatch {
 		return nil, nil
-	}
-
-	nv, err := b.api.StateNetworkVersion(b.mctx, ts.Key())
-	if err != nil {
-		return nil, xerrors.Errorf("couldn't get network version: %w", err)
 	}
 
 	// For precommits the only method to precommit sectors after nv21(22?) is to use the new precommit_batch2 method

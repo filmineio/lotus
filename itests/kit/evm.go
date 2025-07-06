@@ -331,7 +331,7 @@ func (e *EVM) InvokeContractByFuncNameExpectExit(ctx context.Context, fromAddr a
 	require.Equal(e.t, exit, wait.Receipt.ExitCode)
 }
 
-func (e *EVM) WaitTransaction(ctx context.Context, hash ethtypes.EthHash) (*api.EthTxReceipt, error) {
+func (e *EVM) WaitTransaction(ctx context.Context, hash ethtypes.EthHash) (*ethtypes.EthTxReceipt, error) {
 	retries := 3
 	var mcid *cid.Cid
 	var err error
@@ -425,12 +425,12 @@ func SetupFEVMTest(t *testing.T, opts ...interface{}) (context.Context, context.
 	ens.InterconnectAll().BeginMining(blockTime)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
-	// require that the initial balance is 100 million FIL in setup
+	// require that the initial balance is 10 million FIL in setup
 	// this way other tests can count on this initial wallet balance
 	fromAddr := client.DefaultKey.Address
 	bal, err := client.WalletBalance(ctx, fromAddr)
 	require.NoError(t, err)
-	originalBalance := types.FromFil(uint64(100_000_000)) // 100 million FIL
+	originalBalance := types.FromFil(uint64(10_000_000)) // 10 million FIL
 	require.Equal(t, originalBalance, bal)
 
 	return ctx, cancel, client

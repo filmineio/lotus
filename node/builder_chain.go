@@ -9,9 +9,8 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-f3/manifest"
-
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v2api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain"
 	"github.com/filecoin-project/lotus/chain/beacon"
@@ -40,8 +39,11 @@ import (
 	"github.com/filecoin-project/lotus/node/hello"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/impl/common"
+	"github.com/filecoin-project/lotus/node/impl/eth"
 	"github.com/filecoin-project/lotus/node/impl/full"
+	"github.com/filecoin-project/lotus/node/impl/gasutils"
 	"github.com/filecoin-project/lotus/node/impl/net"
+	"github.com/filecoin-project/lotus/node/impl/paych"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/lp2p"
@@ -117,30 +119,41 @@ var ChainNode = Options(
 	Override(new(wallet.Default), From(new(*wallet.LocalWallet))),
 	Override(new(api.Wallet), From(new(wallet.MultiWallet))),
 
-	// Service: Payment channels
-	Override(new(paychmgr.PaychAPI), From(new(modules.PaychAPI))),
-	Override(new(*paychmgr.Store), modules.NewPaychStore),
-	Override(new(*paychmgr.Manager), modules.NewManager),
-	Override(HandlePaymentChannelManagerKey, modules.HandlePaychManager),
-	Override(SettlePaymentChannelsKey, settler.SettlePaymentChannels),
-
 	// Markets (storage)
 	Override(new(*market.FundManager), market.NewFundManager),
 
-	Override(new(*full.GasPriceCache), full.NewGasPriceCache),
+	Override(new(*gasutils.GasPriceCache), gasutils.NewGasPriceCache),
 
 	// Lite node API
 	ApplyIf(isLiteNode,
 		Override(new(messagepool.Provider), messagepool.NewProviderLite),
 		Override(new(messagepool.MpoolNonceAPI), From(new(modules.MpoolNonceAPI))),
 		Override(new(full.ChainModuleAPI), From(new(api.Gateway))),
+		Override(new(full.ChainModuleAPIv2), From(new(v2api.Gateway))),
 		Override(new(full.GasModuleAPI), From(new(api.Gateway))),
 		Override(new(full.MpoolModuleAPI), From(new(api.Gateway))),
 		Override(new(full.StateModuleAPI), From(new(api.Gateway))),
+		Override(new(full.StateModuleAPIv2), From(new(v2api.Gateway))),
 		Override(new(stmgr.StateManagerAPI), rpcstmgr.NewRPCStateManager),
-		Override(new(full.EthModuleAPI), From(new(api.Gateway))),
-		Override(new(full.EthEventAPI), From(new(api.Gateway))),
 		Override(new(full.ActorEventAPI), From(new(api.Gateway))),
+		Override(new(full.EthFilecoinAPIV1), From(new(api.Gateway))),
+		Override(new(full.EthFilecoinAPIV2), From(new(v2api.Gateway))),
+		Override(new(eth.EthBasicAPI), From(new(api.Gateway))),
+		Override(new(eth.EthEventsAPI), From(new(api.Gateway))),
+		Override(new(full.EthLookupAPIV1), From(new(api.Gateway))),
+		Override(new(full.EthLookupAPIV2), From(new(v2api.Gateway))),
+		Override(new(full.EthTraceAPIV1), From(new(api.Gateway))),
+		Override(new(full.EthTraceAPIV2), From(new(v2api.Gateway))),
+		Override(new(full.EthGasAPIV1), From(new(api.Gateway))),
+		Override(new(full.EthGasAPIV2), From(new(v2api.Gateway))),
+		If(build.IsF3Enabled(), Override(new(full.F3CertificateProvider), From(new(api.Gateway)))),
+		// EthSendAPI is a special case, we block the Untrusted method via GatewayEthSend even though it
+		// shouldn't be exposed on the Gateway API.
+		Override(new(eth.EthSendAPI), new(modules.GatewayEthSend)),
+		// EthTransactionAPIV1 is a special case, we block the Limited methods via
+		// GatewayEthTransaction even though it shouldn't be exposed on the Gateway API.
+		Override(new(full.EthTransactionAPIV1), new(modules.GatewayEthTransaction)),
+		Override(new(full.EthTransactionAPIV2), new(modules.GatewayEthTransaction)),
 
 		Override(new(index.Indexer), modules.ChainIndexer(config.ChainIndexerConfig{
 			EnableIndexer: false,
@@ -152,9 +165,11 @@ var ChainNode = Options(
 		Override(new(messagepool.Provider), messagepool.NewProvider),
 		Override(new(messagepool.MpoolNonceAPI), From(new(*messagepool.MessagePool))),
 		Override(new(full.ChainModuleAPI), From(new(full.ChainModule))),
+		Override(new(full.ChainModuleAPIv2), From(new(full.ChainModuleV2))),
 		Override(new(full.GasModuleAPI), From(new(full.GasModule))),
 		Override(new(full.MpoolModuleAPI), From(new(full.MpoolModule))),
 		Override(new(full.StateModuleAPI), From(new(full.StateModule))),
+		Override(new(full.StateModuleAPIv2), From(new(full.StateModuleV2))),
 		Override(new(stmgr.StateManagerAPI), From(new(*stmgr.StateManager))),
 
 		Override(RunHelloKey, modules.RunHello),
@@ -163,11 +178,13 @@ var ChainNode = Options(
 		Override(HandleIncomingMessagesKey, modules.HandleIncomingMessages),
 		Override(HandleIncomingBlocksKey, modules.HandleIncomingBlocks),
 	),
-
-	If(build.IsF3Enabled(),
+	ApplyIf(func(s *Settings) bool {
+		return build.IsF3Enabled() && !isLiteNode(s)
+	},
+		Override(new(dtypes.F3DS), modules.F3Datastore),
 		Override(new(*lf3.Config), lf3.NewConfig),
-		Override(new(manifest.ManifestProvider), lf3.NewManifestProvider),
-		Override(new(*lf3.F3), lf3.New),
+		Override(new(lf3.F3Backend), lf3.New),
+		Override(new(full.F3ModuleAPI), From(new(full.F3API))),
 	),
 )
 
@@ -266,17 +283,52 @@ func ConfigFullNode(c interface{}) Option {
 			If(cfg.Fevm.EnableEthRPC || cfg.Events.EnableActorEventsAPI,
 				// Actor event filtering support, only needed for either Eth RPC and ActorEvents API
 				Override(new(events.EventHelperAPI), From(new(modules.EventHelperAPI))),
-				Override(new(*filter.EventFilterManager), modules.EventFilterManager(cfg.Events)),
+				Override(new(*filter.EventFilterManager), modules.MakeEventFilterManager(cfg.Events)),
 			),
 
+			Override(new(eth.ChainStore), From(new(*store.ChainStore))),
+			Override(new(eth.StateManager), From(new(*stmgr.StateManager))),
+			Override(new(full.EthTipSetResolverV1), modules.MakeV1TipSetResolver),
+			Override(new(full.EthTipSetResolverV2), modules.MakeV2TipSetResolver),
+			Override(new(full.EthFilecoinAPIV1), modules.MakeEthFilecoinV1),
+			Override(new(full.EthFilecoinAPIV2), modules.MakeEthFilecoinV2),
+
 			If(cfg.Fevm.EnableEthRPC,
-				Override(new(*full.EthEventHandler), modules.EthEventHandler(cfg.Events, cfg.Fevm.EnableEthRPC)),
-				Override(new(full.EthModuleAPI), modules.EthModuleAPI(cfg.Fevm)),
-				Override(new(full.EthEventAPI), From(new(*full.EthEventHandler))),
+				Override(new(eth.StateAPI), From(new(full.StateAPI))),
+				Override(new(eth.SyncAPI), From(new(full.SyncAPI))),
+				Override(new(eth.MpoolAPI), From(new(full.MpoolAPI))),
+				Override(new(eth.MessagePool), From(new(*messagepool.MessagePool))),
+				Override(new(eth.GasAPI), From(new(full.GasModule))),
+
+				Override(new(eth.EthBasicAPI), eth.NewEthBasicAPI),
+				Override(new(eth.EthSendAPI), eth.NewEthSendAPI),
+				Override(new(eth.EthEventsInternal), modules.MakeEthEventsExtended(cfg.Events, cfg.Fevm.EnableEthRPC)),
+				Override(new(eth.EthEventsAPI), From(new(eth.EthEventsInternal))),
+
+				Override(new(full.EthTransactionAPIV1), modules.MakeEthTransactionV1(cfg.Fevm)),
+				Override(new(full.EthLookupAPIV1), modules.MakeEthLookupV1),
+				Override(new(full.EthTraceAPIV1), modules.MakeEthTraceV1(cfg.Fevm)),
+				Override(new(full.EthGasAPIV1), modules.MakeEthGasV1),
+
+				Override(new(full.EthTransactionAPIV2), modules.MakeEthTransactionV2(cfg.Fevm)),
+				Override(new(full.EthLookupAPIV2), modules.MakeEthLookupV2),
+				Override(new(full.EthTraceAPIV2), modules.MakeEthTraceV2(cfg.Fevm)),
+				Override(new(full.EthGasAPIV2), modules.MakeEthGasV2),
 			),
 			If(!cfg.Fevm.EnableEthRPC,
-				Override(new(full.EthModuleAPI), &full.EthModuleDummy{}),
-				Override(new(full.EthEventAPI), &full.EthModuleDummy{}),
+				Override(new(eth.EthBasicAPI), &eth.EthBasicDisabled{}),
+				Override(new(eth.EthSendAPI), &eth.EthSendDisabled{}),
+				Override(new(eth.EthEventsAPI), &eth.EthEventsDisabled{}),
+
+				Override(new(full.EthTransactionAPIV1), &eth.EthTransactionDisabled{}),
+				Override(new(full.EthLookupAPIV1), &eth.EthLookupDisabled{}),
+				Override(new(full.EthTraceAPIV1), &eth.EthTraceDisabled{}),
+				Override(new(full.EthGasAPIV1), &eth.EthGasDisabled{}),
+
+				Override(new(full.EthTransactionAPIV2), &eth.EthTransactionDisabled{}),
+				Override(new(full.EthLookupAPIV2), &eth.EthLookupDisabled{}),
+				Override(new(full.EthTraceAPIV2), &eth.EthTraceDisabled{}),
+				Override(new(full.EthGasAPIV2), &eth.EthGasDisabled{}),
 			),
 
 			If(cfg.Events.EnableActorEventsAPI,
@@ -300,8 +352,20 @@ func ConfigFullNode(c interface{}) Option {
 			Override(new(index.Indexer), modules.ChainIndexer(cfg.ChainIndexer)),
 			Override(new(full.ChainIndexerAPI), modules.ChainIndexHandler(cfg.ChainIndexer)),
 			If(cfg.ChainIndexer.EnableIndexer,
-				Override(InitChainIndexerKey, modules.InitChainIndexer),
+				Override(InitChainIndexerKey, modules.InitChainIndexer(cfg.ChainIndexer)),
 			),
+		),
+
+		If(cfg.PaymentChannels.EnablePaymentChannelManager,
+			Override(new(paychmgr.ManagerNodeAPI), From(new(modules.PaychManagerNodeAPI))),
+			Override(new(*paychmgr.Store), modules.NewPaychStore),
+			Override(new(*paychmgr.Manager), modules.NewManager),
+			Override(HandlePaymentChannelManagerKey, modules.HandlePaychManager),
+			Override(SettlePaymentChannelsKey, settler.SettlePaymentChannels),
+			Override(new(paych.PaychAPI), From(new(paych.PaychImpl))),
+		),
+		If(!cfg.PaymentChannels.EnablePaymentChannelManager,
+			Override(new(paych.PaychAPI), new(paych.DisabledPaych)),
 		),
 	)
 }
@@ -330,4 +394,13 @@ func FullAPI(out *api.FullNode, fopts ...FullOption) Option {
 			return nil
 		},
 	)
+}
+
+func FullAPIv2(out *v2api.FullNode) Option {
+	return func(s *Settings) error {
+		resAPI := &impl.FullNodeAPIv2{}
+		s.invokes[InitApiV2Key] = fx.Populate(resAPI)
+		*out = resAPI
+		return nil
+	}
 }

@@ -115,7 +115,7 @@ func (p *Participant) run(ctx context.Context) (_err error) {
 				return ctx.Err()
 			}
 		}
-		log.Info("Renewing F3 participation")
+		log.Debug("Renewing F3 participation")
 	}
 	return ctx.Err()
 }
@@ -130,9 +130,8 @@ func (p *Participant) tryGetF3ParticipationTicket(ctx context.Context, previousT
 			log.Errorw("Cannot participate in F3 as it is disabled.", "err", err)
 			return api.F3ParticipationTicket{}, xerrors.Errorf("acquiring F3 participation ticket: %w", err)
 		case err != nil:
-			log.Errorw("Failed to acquire F3 participation ticket; retrying after backoff", "backoff", p.backoff.Duration(), "err", err)
+			log.Debugw("Failed to acquire F3 participation ticket; retrying after backoff", "backoff", p.backoff.Duration(), "attempts", p.backoff.Attempt(), "err", err)
 			p.backOff(ctx)
-			log.Debugw("Reattempting to acquire F3 participation ticket.", "attempts", p.backoff.Attempt())
 			continue
 		default:
 			log.Debug("Successfully acquired F3 participation ticket")
@@ -213,7 +212,7 @@ func (p *Participant) tryParticipate(ctx context.Context, ticket api.F3Participa
 
 		// Log the first time we give out the lease.
 		if !haveLease {
-			log.Infow("Successfully acquired F3 participation lease.",
+			log.Debugw("Successfully acquired F3 participation lease.",
 				"issuer", lease.Issuer,
 				"not-before", lease.FromInstance,
 				"not-after", lease.ToInstance(),

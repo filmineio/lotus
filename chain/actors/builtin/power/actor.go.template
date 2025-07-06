@@ -22,7 +22,8 @@ import (
 	    builtin{{.}} "github.com/filecoin-project/specs-actors{{import .}}actors/builtin"
     {{end}}
 {{end}}
-    builtin{{.latestVersion}} "github.com/filecoin-project/go-state-types/builtin"
+	builtin{{.latestVersion}} "github.com/filecoin-project/go-state-types/builtin"
+	powertypes{{.latestVersion}} "github.com/filecoin-project/go-state-types/builtin/v{{.latestVersion}}/power"
 )
 
 var (
@@ -104,6 +105,7 @@ type State interface {
 	// before returning the actor.
 	ForEachClaim(cb func(miner address.Address, claim Claim) error, onlyEligible bool) error
 	ClaimsChanged(State) (bool, error)
+    CollectEligibleClaims(cacheInOut *builtin{{.latestVersion}}.MapReduceCache) ([]builtin{{.latestVersion}}.OwnedClaim, error)
 
 	// Testing or genesis setup only
 	SetTotalQualityAdjPower(abi.StoragePower) error
@@ -137,3 +139,8 @@ func AllCodes() []cid.Cid {
     {{- end}}
     }
 }
+
+type (
+	MinerPowerParams = powertypes{{.latestVersion}}.MinerPowerParams
+	MinerPowerReturn = powertypes{{.latestVersion}}.MinerPowerReturn
+)

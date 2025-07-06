@@ -102,14 +102,14 @@ type Config struct {
 	// from the hotstore should be written to the cold store
 	UniversalColdBlocks bool
 
-	// HotstoreMessageRetention indicates the hotstore retention policy for messages.
+	// HotStoreMessageRetention indicates the hotstore retention policy for messages.
 	// It has the following semantics:
 	// - a value of 0 will only retain messages within the compaction boundary (4 finalities)
 	// - a positive integer indicates the number of finalities, outside the compaction boundary,
 	//   for which messages will be retained in the hotstore.
 	HotStoreMessageRetention uint64
 
-	// HotstoreFullGCFrequency indicates how frequently (in terms of compactions) to garbage collect
+	// HotStoreFullGCFrequency indicates how frequently (in terms of compactions) to garbage collect
 	// the hotstore using full (moving) GC if supported by the hotstore.
 	// A value of 0 disables full GC entirely.
 	// A positive value is the number of compactions before a full GC is performed;
@@ -266,7 +266,11 @@ func Open(path string, ds dstore.Datastore, hot, cold bstore.Blockstore, cfg *Co
 	ss.txnViewsCond.L = &ss.txnViewsMx
 	ss.txnSyncCond.L = &ss.txnSyncMx
 	ss.chainSyncCond.L = &ss.chainSyncMx
-	ss.ctx, ss.cancel = context.WithCancel(context.Background())
+
+	baseCtx := context.Background()
+	ctx := metrics.AddNetworkTag(baseCtx)
+
+	ss.ctx, ss.cancel = context.WithCancel(ctx)
 
 	ss.reifyCond.L = &ss.reifyMx
 	ss.reifyPend = make(map[cid.Cid]struct{})

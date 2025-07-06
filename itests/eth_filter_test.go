@@ -723,7 +723,7 @@ func TestMultipleEvents(t *testing.T) {
 
 	paramsArray := [][]byte{params4Events, params3Events, params3Events}
 
-	var receipts []*api.EthTxReceipt
+	var receipts []*ethtypes.EthTxReceipt
 	var hashes []ethtypes.EthHash
 
 	nonce := 1
@@ -2344,7 +2344,7 @@ func AssertEthLogs(t *testing.T, actual []*ethtypes.EthLog, expected []ExpectedE
 				}
 			}
 
-			t.Errorf(buf.String())
+			t.Error(buf.String())
 		}
 	}
 
@@ -2355,7 +2355,7 @@ func AssertEthLogs(t *testing.T, actual []*ethtypes.EthLog, expected []ExpectedE
 			buf.WriteString(fmt.Sprintf("  address: %s\n", expected[i].Address))
 			buf.WriteString(fmt.Sprintf("  topics: %s\n", formatTopics(expected[i].Topics)))
 			buf.WriteString(fmt.Sprintf("  data: %x\n", expected[i].Data))
-			t.Errorf(buf.String())
+			t.Error(buf.String())
 		}
 	}
 }

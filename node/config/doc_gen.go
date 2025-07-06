@@ -132,6 +132,24 @@ Default: 3 * epochsPerDay (approximately 3 days of chain history)
 Note: Setting this value too low may result in incomplete indexing, while setting it too high
 may increase startup time.`,
 		},
+		{
+			Name: "AllowIndexReconciliationFailure",
+			Type: "bool",
+
+			Comment: `AllowIndexReconciliationFailure determines whether node startup should continue
+if the index reconciliation with the chain state fails.
+
+When set to true:
+- If index reconciliation fails during startup, the node will log a warning but continue to start.
+
+When set to false (default):
+- If index reconciliation fails during startup, the node will fail to start.
+- This ensures that the index is always in a consistent state with the chain before the node starts.
+
+Default: false
+// WARNING: Only set to true if you are okay with an index that may be out of sync with the chain.
+This can lead to inaccurate or missing data in RPC responses that depend on the indexer.`,
+		},
 	},
 	"Chainstore": {
 		{
@@ -331,6 +349,12 @@ Note: Setting this value to 0 disables the cache.`,
 		{
 			Name: "FaultReporter",
 			Type: "FaultReporterConfig",
+
+			Comment: ``,
+		},
+		{
+			Name: "PaymentChannels",
+			Type: "PaymentChannelsConfig",
 
 			Comment: ``,
 		},
@@ -612,6 +636,17 @@ blocks. This should only be set when there's an external process mining
 blocks on behalf of the miner.
 When disabled and no external block producers are configured, all potential
 block rewards will be missed!`,
+		},
+	},
+	"PaymentChannelsConfig": {
+		{
+			Name: "EnablePaymentChannelManager",
+			Type: "bool",
+
+			Comment: `EnablePaymentChannelManager controls whether the payment channel manager is started.
+Default: false (disabled) - payment channels currently have minimal use on mainnet, although
+they remain a Filecoin protocol feature.
+Set to true to enable payment channel functionality if needed.`,
 		},
 	},
 	"ProvingConfig": {
@@ -1032,12 +1067,6 @@ This is useful for forcing all deals to be assigned as snap deals to sectors mar
 			Comment: `time buffer for forceful batch submission before sectors/deal in batch would start expiring`,
 		},
 		{
-			Name: "AggregateCommits",
-			Type: "bool",
-
-			Comment: `enable / disable commit aggregation (takes effect after nv13)`,
-		},
-		{
 			Name: "MinCommitBatch",
 			Type: "int",
 
@@ -1060,21 +1089,6 @@ This is useful for forcing all deals to be assigned as snap deals to sectors mar
 			Type: "Duration",
 
 			Comment: `time buffer for forceful batch submission before sectors/deals in batch would start expiring`,
-		},
-		{
-			Name: "BatchPreCommitAboveBaseFee",
-			Type: "types.FIL",
-
-			Comment: `network BaseFee below which to stop doing precommit batching, instead
-sending precommit messages to the chain individually. When the basefee is
-below this threshold, precommit messages will get sent out immediately.`,
-		},
-		{
-			Name: "AggregateAboveBaseFee",
-			Type: "types.FIL",
-
-			Comment: `network BaseFee below which to stop doing commit aggregation, instead
-submitting proofs to the chain individually`,
 		},
 		{
 			Name: "MaxSectorProveCommitsSubmittedPerEpoch",

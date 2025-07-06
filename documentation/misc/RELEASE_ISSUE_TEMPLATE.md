@@ -1,6 +1,10 @@
 [//]: # (Below are non-visible steps intended for the issue creator)
+<!--{{if .ContentGeneratedWithLotusReleaseCli}}-->
+[//]: # (This content was generated using `{{.LotusReleaseCliString}}`.)
+[//]: # (Learn more at https://github.com/filecoin-project/lotus/tree/master/cmd/release#readme.)
+<!--{{end}}-->
 [//]: # (❗️ Complete the steps below as part of creating a release issue and mark them complete with an X or ✅ when done.)
-<!--{{if not .CreateOnGitHub}}-->
+<!--{{if not .ContentGeneratedWithLotusReleaseCli}}-->
 [//]: # ([ ] Start an issue with title "Lotus {{.Type}} v{{.Tag}} Release" and adjust the title for whether it's a Node or Miner release.)
 [//]: # ([ ] Copy in the content of https://github.com/filecoin-project/lotus/blob/master/documentation/misc/RELEASE_ISSUE_TEMPLATE.md)
 [//]: # ([ ] Find all the "go templating" "control" logic that is in \{\{ \}\} blocks and mimic the logic manually.)
@@ -8,7 +12,7 @@
 [//]: # ([ ] Apply the `tpm` label to the issue)
 [//]: # ([ ] Create the issue)
 <!--{{end}}-->
-<!-- At least as of 2024-12-02, it isn't possible to programmatically pin issues. -->
+<!-- At least as of 2025-03-20, it isn't possible to programmatically pin issues. -->
 [//]: # ([ ] Pin the issue on GitHub)
 
 # 😶‍🌫 Meta
@@ -45,20 +49,25 @@
 # ✅ Release Checklist
 
 ## ⬅️  Before RC1
+<details open>
+  <summary>Section</summary>
+
 <!--{{if ne .NetworkUpgrade ""}}-->
 - [ ] Make sure all [Lotus dependencies are updated to the correct versions for the network upgrade](https://github.com/filecoin-project/lotus/blob/master/documentation/misc/Update_Dependencies_Lotus.md)
    - Link to Lotus PR:
 <!--{{end}}-->
 - [ ] Open PR against [RELEASE_ISSUE_TEMPLATE.md](https://github.com/filecoin-project/lotus/blob/master/documentation/misc/RELEASE_ISSUE_TEMPLATE.md) with title `docs(release): v{{.Tag}} release template improvements` for improving future releases.
    - Link to PR:
-   - There likely aren't any changes at this point, but this can be opened with a small whitespace change so the PR is open and we can more easily hold the standard of making improvements incrementally since improvements are usually better done by collecting changes/notes along the way rather than just thinking about it at the end.
+   - There likely aren't any changes at this point, but this can be opened with a small whitespace change so the PR is open and we can more easily hold the standard of making improvements incrementally since improvements are usually better done by collecting changes/notes along the way rather than just thinking about it at the end. 
    - This will get merged in a `Post Release` step.
 <!--{{if eq .Level "patch"}})-->
 <!--  {{if contains "Node" .Type}}-->
-- [ ] Fork a new `release/v{{.Tag}}` branch from the last stable `release/vX.Y.x` and make any further release-related changes to this branch.
+- [ ] Fork a new `release/v{{.Tag}}` branch from the `master` branch and make any further release-related changes to this branch.
+   - Note: For critical security patches, fork a new branch from the last stable `release/vX.Y.x` to expedite the release process.
 <!--  {{end}}-->
 <!--  {{if contains "Miner" .Type}}-->
-- [ ] Fork a new `release/miner/v{{.Tag}}` branch from the last stable `release/miner/vX.Y.x` and make any further release-related changes to this branch.
+- [ ] Fork a new `release/miner/v{{.Tag}}` branch from the `master` branch and make any further release-related changes to this branch.
+   - Note: For critical security patches, fork a new branch from the last stable `release/vX.Y.x` to expedite the release process.
 <!--  {{end}}-->
 <!--{{end}}-->
 <!--{{if eq .Level "minor"}}-->
@@ -87,6 +96,7 @@
      - Link to PR:
    - [ ] Merge PR
 <!--{{end}}-->
+</details>
 
 ## 🏎️  RCs
 
@@ -96,6 +106,9 @@
 <!--    {{$tagSuffix = printf "-%s" $rc}}-->
 <!--  {{end}}-->
 ### {{$rc}}
+<details>
+  <summary>Section</summary>
+
 > [!IMPORTANT]
 > These PRs should be done in and target the `release/v{{$.Tag}}` or `release/miner/v{{$.Tag}}` branch.
 
@@ -103,14 +116,13 @@
 - [ ] All explicitly tracked items from `Dependencies for releases` have landed
 <!--  {{if ne $rc "rc1"}}-->
 - [ ] Backported [everything with the "backport" label](https://github.com/filecoin-project/lotus/issues?q=label%3Arelease%2Fbackport+)
-- [ ] Removed the "backport" label from all backported PRs (no ["backport" issues](https://github.com/filecoin-project/lotus/issues?q=label%3Arelease%2Fbackport+))
 - [ ] Create a PR with title `build: backport changes for {{$.Type}} v{{$.Tag}}{{$tagSuffix}}`
    - Link to PR:
 - [ ] Merge PR
+- [ ] Remove the "backport" label from all backported PRs (no ["backport" issues](https://github.com/filecoin-project/lotus/issues?q=label%3Arelease%2Fbackport+))
 <!--  {{end}}-->
 
 #### Release PR for {{$rc}}
-
 - [ ] Update the version string(s) in `build/version.go` to one {{if contains "rc" $rc}}ending with '-{{$rc}}'{{else}}**NOT* ending with 'rcX'{{end}}.
 <!--  {{if contains "Node" $.Type}}-->
     - Ensure to update `NodeBuildVersion`
@@ -142,21 +154,29 @@
 - [ ] Merge the PR
    - Merging the PR will trigger a CI run that will build assets, attach the assets to the GitHub release, publish the GitHub release, and create the corresponding git tag.
  - [ ] Update `🚢 Estimated shipping date` table
- - [ ] Comment on this issue announcing the RC
+ - [ ] Comment on this issue announcing the release:
     - Link to issue comment:
 
 #### Testing for {{$rc}}
+
 > [!NOTE]
 > Link to any special steps for testing releases beyond ensuring CI is green.  Steps can be inlined here or tracked elsewhere.
 
+</details>
 <!--{{end}}-->
 
 ## ➡ Post-Release
+<details>
+  <summary>Section</summary>
 
 - [ ] Open a PR against `master` cherry-picking the CHANGELOG commits from the `release/v{{.Tag}}` branch. Title it `chore(release): cherry-pick v{{.Tag}} changelog back to master`
    - Link to PR:
    - Assuming we followed [the process of merging changes into `master` first before backporting to the release branch](https://github.com/filecoin-project/lotus/blob/master/LOTUS_RELEASE_FLOW.md#branch-and-tag-strategy), the only changes should be CHANGELOG updates.
 - [ ] Finish updating/merging the [RELEASE_ISSUE_TEMPLATE.md](https://github.com/filecoin-project/lotus/blob/master/documentation/misc/RELEASE_ISSUE_TEMPLATE.md) PR from `Before RC1` with any improvements determined from this latest release iteration.
+- [ ] Review and approve the auto-generated PR in [lotus-docs](https://github.com/filecoin-project/lotus-docs/pulls) that updates the latest Lotus version information.
+- [ ] Review and approve the auto-generated PR in [homebrew-lotus](https://github.com/filecoin-project/homebrew-lotus/pulls) that updates the homebrew to the latest Lotus version.
+- [ ] Stage any security advisories for future publishing per [policy](https://github.com/filecoin-project/lotus/blob/master/LOTUS_RELEASE_FLOW.md#security-fix-policy).
+</details>
 
 # ❤️ Contributors
 

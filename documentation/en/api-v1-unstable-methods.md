@@ -360,7 +360,8 @@ Response:
 {
   "Version": "string value",
   "APIVersion": 131840,
-  "BlockDelay": 42
+  "BlockDelay": 42,
+  "Agent": "string value"
 }
 ```
 
@@ -713,9 +714,73 @@ Inputs: `null`
 Response:
 ```json
 {
-  "Cids": null,
-  "Blocks": null,
-  "Height": 0
+  "Cids": [
+    {
+      "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+    }
+  ],
+  "Blocks": [
+    {
+      "Miner": "f01938223",
+      "Ticket": {
+        "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+      },
+      "ElectionProof": {
+        "WinCount": 1,
+        "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+      },
+      "BeaconEntries": [
+        {
+          "Round": 17133822,
+          "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+        },
+        {
+          "Round": 17133832,
+          "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+        }
+      ],
+      "WinPoStProof": [
+        {
+          "PoStProof": 3,
+          "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+        }
+      ],
+      "Parents": [
+        {
+          "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+        },
+        {
+          "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+        },
+        {
+          "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+        }
+      ],
+      "ParentWeight": "116013147118",
+      "Height": 4863283,
+      "ParentStateRoot": {
+        "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+      },
+      "ParentMessageReceipts": {
+        "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+      },
+      "Messages": {
+        "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+      },
+      "BLSAggregate": {
+        "Type": 2,
+        "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+      },
+      "Timestamp": 1744204890,
+      "BlockSig": {
+        "Type": 2,
+        "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+      },
+      "ForkSignaling": 0,
+      "ParentBaseFee": "20592036"
+    }
+  ],
+  "Height": 4863283
 }
 ```
 
@@ -941,9 +1006,73 @@ Response:
   {
     "Type": "string value",
     "Val": {
-      "Cids": null,
-      "Blocks": null,
-      "Height": 0
+      "Cids": [
+        {
+          "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+        }
+      ],
+      "Blocks": [
+        {
+          "Miner": "f01938223",
+          "Ticket": {
+            "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+          },
+          "ElectionProof": {
+            "WinCount": 1,
+            "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+          },
+          "BeaconEntries": [
+            {
+              "Round": 17133822,
+              "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+            },
+            {
+              "Round": 17133832,
+              "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+            }
+          ],
+          "WinPoStProof": [
+            {
+              "PoStProof": 3,
+              "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+            }
+          ],
+          "Parents": [
+            {
+              "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+            },
+            {
+              "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+            },
+            {
+              "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+            }
+          ],
+          "ParentWeight": "116013147118",
+          "Height": 4863283,
+          "ParentStateRoot": {
+            "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+          },
+          "ParentMessageReceipts": {
+            "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+          },
+          "Messages": {
+            "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+          },
+          "BLSAggregate": {
+            "Type": 2,
+            "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+          },
+          "Timestamp": 1744204890,
+          "BlockSig": {
+            "Type": 2,
+            "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+          },
+          "ForkSignaling": 0,
+          "ParentBaseFee": "20592036"
+        }
+      ],
+      "Height": 4863283
     }
   }
 ]
@@ -972,9 +1101,73 @@ Inputs:
 Response:
 ```json
 {
-  "Cids": null,
-  "Blocks": null,
-  "Height": 0
+  "Cids": [
+    {
+      "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+    }
+  ],
+  "Blocks": [
+    {
+      "Miner": "f01938223",
+      "Ticket": {
+        "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+      },
+      "ElectionProof": {
+        "WinCount": 1,
+        "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+      },
+      "BeaconEntries": [
+        {
+          "Round": 17133822,
+          "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+        },
+        {
+          "Round": 17133832,
+          "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+        }
+      ],
+      "WinPoStProof": [
+        {
+          "PoStProof": 3,
+          "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+        }
+      ],
+      "Parents": [
+        {
+          "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+        },
+        {
+          "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+        },
+        {
+          "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+        }
+      ],
+      "ParentWeight": "116013147118",
+      "Height": 4863283,
+      "ParentStateRoot": {
+        "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+      },
+      "ParentMessageReceipts": {
+        "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+      },
+      "Messages": {
+        "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+      },
+      "BLSAggregate": {
+        "Type": 2,
+        "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+      },
+      "Timestamp": 1744204890,
+      "BlockSig": {
+        "Type": 2,
+        "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+      },
+      "ForkSignaling": 0,
+      "ParentBaseFee": "20592036"
+    }
+  ],
+  "Height": 4863283
 }
 ```
 
@@ -1004,9 +1197,73 @@ Inputs:
 Response:
 ```json
 {
-  "Cids": null,
-  "Blocks": null,
-  "Height": 0
+  "Cids": [
+    {
+      "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+    }
+  ],
+  "Blocks": [
+    {
+      "Miner": "f01938223",
+      "Ticket": {
+        "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+      },
+      "ElectionProof": {
+        "WinCount": 1,
+        "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+      },
+      "BeaconEntries": [
+        {
+          "Round": 17133822,
+          "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+        },
+        {
+          "Round": 17133832,
+          "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+        }
+      ],
+      "WinPoStProof": [
+        {
+          "PoStProof": 3,
+          "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+        }
+      ],
+      "Parents": [
+        {
+          "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+        },
+        {
+          "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+        },
+        {
+          "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+        }
+      ],
+      "ParentWeight": "116013147118",
+      "Height": 4863283,
+      "ParentStateRoot": {
+        "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+      },
+      "ParentMessageReceipts": {
+        "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+      },
+      "Messages": {
+        "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+      },
+      "BLSAggregate": {
+        "Type": 2,
+        "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+      },
+      "Timestamp": 1744204890,
+      "BlockSig": {
+        "Type": 2,
+        "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+      },
+      "ForkSignaling": 0,
+      "ParentBaseFee": "20592036"
+    }
+  ],
+  "Height": 4863283
 }
 ```
 
@@ -1036,9 +1293,73 @@ Inputs:
 Response:
 ```json
 {
-  "Cids": null,
-  "Blocks": null,
-  "Height": 0
+  "Cids": [
+    {
+      "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+    }
+  ],
+  "Blocks": [
+    {
+      "Miner": "f01938223",
+      "Ticket": {
+        "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+      },
+      "ElectionProof": {
+        "WinCount": 1,
+        "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+      },
+      "BeaconEntries": [
+        {
+          "Round": 17133822,
+          "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+        },
+        {
+          "Round": 17133832,
+          "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+        }
+      ],
+      "WinPoStProof": [
+        {
+          "PoStProof": 3,
+          "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+        }
+      ],
+      "Parents": [
+        {
+          "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+        },
+        {
+          "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+        },
+        {
+          "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+        }
+      ],
+      "ParentWeight": "116013147118",
+      "Height": 4863283,
+      "ParentStateRoot": {
+        "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+      },
+      "ParentMessageReceipts": {
+        "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+      },
+      "Messages": {
+        "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+      },
+      "BLSAggregate": {
+        "Type": 2,
+        "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+      },
+      "Timestamp": 1744204890,
+      "BlockSig": {
+        "Type": 2,
+        "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+      },
+      "ForkSignaling": 0,
+      "ParentBaseFee": "20592036"
+    }
+  ],
+  "Height": 4863283
 }
 ```
 
@@ -1070,9 +1391,73 @@ Inputs: `null`
 Response:
 ```json
 {
-  "Cids": null,
-  "Blocks": null,
-  "Height": 0
+  "Cids": [
+    {
+      "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+    }
+  ],
+  "Blocks": [
+    {
+      "Miner": "f01938223",
+      "Ticket": {
+        "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+      },
+      "ElectionProof": {
+        "WinCount": 1,
+        "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+      },
+      "BeaconEntries": [
+        {
+          "Round": 17133822,
+          "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+        },
+        {
+          "Round": 17133832,
+          "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+        }
+      ],
+      "WinPoStProof": [
+        {
+          "PoStProof": 3,
+          "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+        }
+      ],
+      "Parents": [
+        {
+          "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+        },
+        {
+          "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+        },
+        {
+          "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+        }
+      ],
+      "ParentWeight": "116013147118",
+      "Height": 4863283,
+      "ParentStateRoot": {
+        "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+      },
+      "ParentMessageReceipts": {
+        "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+      },
+      "Messages": {
+        "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+      },
+      "BLSAggregate": {
+        "Type": 2,
+        "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+      },
+      "Timestamp": 1744204890,
+      "BlockSig": {
+        "Type": 2,
+        "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+      },
+      "ForkSignaling": 0,
+      "ParentBaseFee": "20592036"
+    }
+  ],
+  "Height": 4863283
 }
 ```
 
@@ -1111,9 +1496,73 @@ Response:
   {
     "Type": "string value",
     "Val": {
-      "Cids": null,
-      "Blocks": null,
-      "Height": 0
+      "Cids": [
+        {
+          "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+        }
+      ],
+      "Blocks": [
+        {
+          "Miner": "f01938223",
+          "Ticket": {
+            "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+          },
+          "ElectionProof": {
+            "WinCount": 1,
+            "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+          },
+          "BeaconEntries": [
+            {
+              "Round": 17133822,
+              "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+            },
+            {
+              "Round": 17133832,
+              "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+            }
+          ],
+          "WinPoStProof": [
+            {
+              "PoStProof": 3,
+              "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+            }
+          ],
+          "Parents": [
+            {
+              "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+            },
+            {
+              "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+            },
+            {
+              "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+            }
+          ],
+          "ParentWeight": "116013147118",
+          "Height": 4863283,
+          "ParentStateRoot": {
+            "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+          },
+          "ParentMessageReceipts": {
+            "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+          },
+          "Messages": {
+            "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+          },
+          "BLSAggregate": {
+            "Type": 2,
+            "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+          },
+          "Timestamp": 1744204890,
+          "BlockSig": {
+            "Type": 2,
+            "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+          },
+          "ForkSignaling": 0,
+          "ParentBaseFee": "20592036"
+        }
+      ],
+      "Height": 4863283
     }
   }
 ]
@@ -1268,7 +1717,7 @@ Parameters:
 Returns:
   - *types.IndexValidation: A pointer to an IndexValidation struct containing the results of the validation/backfill.
   - error: An error object if the validation/backfill fails. The error message will contain details about the index
-           corruption if the call fails because of an incosistency between indexed data and the actual chain state.
+           corruption if the call fails because of an inconsistency between indexed data and the actual chain state.
            Note: The API returns an error if the index does not have data for the specified epoch and backfill is set to false.
 
 
@@ -1326,11 +1775,36 @@ Response: `{}`
 ## Eth
 These methods are used for Ethereum-compatible JSON-RPC calls
 
-EthAccounts will always return [] since we don't expect Lotus to manage private keys
+### Execution model reconciliation
+
+Ethereum relies on an immediate block-based execution model. The block that includes
+a transaction is also the block that executes it. Each block specifies the state root
+resulting from executing all transactions within it (output state).
+
+In Filecoin, at every epoch there is an unknown number of round winners all of whom are
+entitled to publish a block. Blocks are collected into a tipset. A tipset is committed
+only when the subsequent tipset is built on it (i.e. it becomes a parent). Block producers
+execute the parent tipset and specify the resulting state root in the block being produced.
+In other words, contrary to Ethereum, each block specifies the input state root.
+
+Ethereum clients expect transactions returned via eth_getBlock* to have a receipt
+(due to immediate execution). For this reason:
+
+  - eth_blockNumber returns the latest executed epoch (head - 1)
+  - The 'latest' block refers to the latest executed epoch (head - 1)
+  - The 'pending' block refers to the current speculative tipset (head)
+  - eth_getTransactionByHash returns the inclusion tipset of a message, but
+    only after it has executed.
+  - eth_getTransactionReceipt ditto.
+
+"Latest executed epoch" refers to the tipset that this node currently
+accepts as the best parent tipset, based on the blocks it is accumulating
+within the HEAD tipset.
 
 
 ### EthAccounts
-There are not yet any comments for this method.
+EthAccounts will always return [] since we don't expect Lotus to manage private keys
+
 
 Perms: read
 
@@ -1674,7 +2148,7 @@ Perms: read
 Inputs:
 ```json
 [
-  "0x5"
+  "string value"
 ]
 ```
 
@@ -2586,20 +3060,19 @@ Inputs: `null`
 Response:
 ```json
 {
-  "Pause": false,
   "ProtocolVersion": 0,
   "InitialInstance": 0,
   "BootstrapEpoch": 0,
   "NetworkName": "",
-  "ExplicitPower": null,
-  "IgnoreECPower": false,
   "InitialPowerTable": null,
   "CommitteeLookback": 0,
   "CatchUpAlignment": 0,
   "Gpbft": {
     "Delta": 0,
     "DeltaBackOffExponent": 0,
+    "QualityDeltaMultiplier": 0,
     "MaxLookaheadRounds": 0,
+    "ChainProposedLength": 0,
     "RebroadcastBackoffBase": 0,
     "RebroadcastBackoffExponent": 0,
     "RebroadcastBackoffSpread": 0,
@@ -2618,6 +3091,30 @@ Response:
     "ServerRequestTimeout": 0,
     "MinimumPollInterval": 0,
     "MaximumPollInterval": 0
+  },
+  "PubSub": {
+    "CompressionEnabled": false,
+    "ChainCompressionEnabled": false,
+    "GMessageSubscriptionBufferSize": 0,
+    "ValidatedMessageBufferSize": 0
+  },
+  "ChainExchange": {
+    "SubscriptionBufferSize": 0,
+    "MaxChainLength": 0,
+    "MaxInstanceLookahead": 0,
+    "MaxDiscoveredChainsPerInstance": 0,
+    "MaxWantedChainsPerInstance": 0,
+    "RebroadcastInterval": 0,
+    "MaxTimestampAge": 0
+  },
+  "PartialMessageManager": {
+    "PendingDiscoveredChainsBufferSize": 0,
+    "PendingPartialMessagesBufferSize": 0,
+    "PendingChainBroadcastsBufferSize": 0,
+    "PendingInstanceRemovalBufferSize": 0,
+    "CompletedMessagesBufferSize": 0,
+    "MaxBufferedMessagesPerInstance": 0,
+    "MaxCachedValidatedMessagesPerInstance": 0
   }
 }
 ```
@@ -2668,9 +3165,26 @@ Inputs: `null`
 Response:
 ```json
 {
-  "ID": 42,
-  "Round": 42,
-  "Phase": 0
+  "ID": 1413,
+  "Round": 1,
+  "Phase": 4,
+  "Input": [
+    {
+      "Key": [
+        {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        {
+          "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+        }
+      ],
+      "Commitments": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      "Epoch": 0,
+      "PowerTable": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      }
+    }
+  ]
 }
 ```
 
@@ -5867,7 +6381,7 @@ Perms: read
 Inputs:
 ```json
 [
-  25
+  27
 ]
 ```
 
@@ -5882,7 +6396,7 @@ Perms: read
 Inputs:
 ```json
 [
-  25
+  27
 ]
 ```
 
@@ -6083,7 +6597,31 @@ Response:
             "tt": 60000000000
           }
         ],
-        "Subcalls": null
+        "Subcalls": null,
+        "Logs": [
+          "string value"
+        ],
+        "IpldOps": [
+          {
+            "Op": "Get",
+            "Cid": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Size": 42
+          }
+        ]
+      }
+    ],
+    "Logs": [
+      "string value"
+    ],
+    "IpldOps": [
+      {
+        "Op": "Get",
+        "Cid": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        "Size": 42
       }
     ]
   },
@@ -6345,7 +6883,31 @@ Response:
                 "tt": 60000000000
               }
             ],
-            "Subcalls": null
+            "Subcalls": null,
+            "Logs": [
+              "string value"
+            ],
+            "IpldOps": [
+              {
+                "Op": "Get",
+                "Cid": {
+                  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+                },
+                "Size": 42
+              }
+            ]
+          }
+        ],
+        "Logs": [
+          "string value"
+        ],
+        "IpldOps": [
+          {
+            "Op": "Get",
+            "Cid": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Size": 42
           }
         ]
       },
@@ -6391,6 +6953,8 @@ Response:
 ### StateDealProviderCollateralBounds
 StateDealProviderCollateralBounds returns the min and max collateral a storage provider
 can issue. It takes the deal size and verified status as parameters.
+Note: The min value returned is overestimated by 10% (multiplied by 110/100).
+See: node/impl/full/state.go StateDealProviderCollateralBounds implementation.
 
 
 Perms: read
@@ -6762,9 +7326,6 @@ Response:
   "NetworkName": "lotus",
   "BlockDelaySecs": 42,
   "ConsensusMinerMinPower": "0",
-  "SupportedProofTypes": [
-    8
-  ],
   "PreCommitChallengeDelay": 10101,
   "ForkUpgradeParams": {
     "UpgradeSmokeHeight": 10101,
@@ -6796,9 +7357,12 @@ Response:
     "UpgradePhoenixHeight": 10101,
     "UpgradeWaffleHeight": 10101,
     "UpgradeTuktukHeight": 10101,
-    "UpgradeTeepHeight": 10101
+    "UpgradeTeepHeight": 10101,
+    "UpgradeTockHeight": 10101,
+    "UpgradeXxHeight": 10101
   },
-  "Eip155ChainID": 123
+  "Eip155ChainID": 123,
+  "GenesisTimestamp": 42
 }
 ```
 
@@ -7243,9 +7807,6 @@ Response:
     "SealedCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "DealIDs": [
-      5432
-    ],
     "Activation": 10101,
     "Expiration": 10101,
     "DealWeight": "0",
@@ -7258,7 +7819,8 @@ Response:
     "SectorKeyCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "Flags": 0
+    "Flags": 0,
+    "DailyFee": "0"
   }
 ]
 ```
@@ -7292,7 +7854,11 @@ Response:
 ```
 
 ### StateMinerAvailableBalance
-StateMinerAvailableBalance returns the portion of a miner's balance that can be withdrawn or spent
+StateMinerAvailableBalance returns the portion of a miner's balance that can be withdrawn or
+spent. It is calculated by subtracting the following from the miner actor's balance:
+* Locked vesting funds (accounting for vesting funds that should already be unlocked)
+* PreCommit deposits
+* Initial pledge collateral
 
 
 Perms: read
@@ -7343,7 +7909,8 @@ Response:
       5,
       1
     ],
-    "DisputableProofCount": 42
+    "DisputableProofCount": 42,
+    "DailyFee": "0"
   }
 ]
 ```
@@ -7440,6 +8007,8 @@ deal space in the sector in order to perform a QAP calculation. Since network ve
 the introduction of DDO, the DealIDs field can no longer be used to reliably determine verified
 deal space; therefore, this method is deprecated. Use StateMinerInitialPledgeForSector instead
 and pass in the verified deal space directly.
+Note: The value returned is overestimated by 10% (multiplied by 110/100).
+See: node/impl/full/state.go StateMinerInitialPledgeCollateral implementation.
 
 Deprecated: Use StateMinerInitialPledgeForSector instead.
 
@@ -7483,6 +8052,8 @@ StateMinerInitialPledgeForSector returns the initial pledge collateral for a giv
 duration, size, and combined size of any verified pieces within the sector. This calculation
 depends on current network conditions (total power, total pledge and current rewards) at the
 given tipset.
+Note: The value returned is overestimated by 10% (multiplied by 110/100).
+See: node/impl/full/state.go StateMinerInitialPledgeForSector implementation.
 
 
 Perms: read
@@ -7594,6 +8165,8 @@ Response:
 
 ### StateMinerPreCommitDepositForPower
 StateMinerPreCommitDepositForPower returns the precommit deposit for the specified miner's sector
+Note: The value returned is overestimated by 10% (multiplied by 110/100).
+See: node/impl/full/state.go StateMinerPreCommitDepositForPower implementation.
 
 
 Perms: read
@@ -7786,9 +8359,6 @@ Response:
     "SealedCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "DealIDs": [
-      5432
-    ],
     "Activation": 10101,
     "Expiration": 10101,
     "DealWeight": "0",
@@ -7801,7 +8371,8 @@ Response:
     "SectorKeyCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "Flags": 0
+    "Flags": 0,
+    "DailyFee": "0"
   }
 ]
 ```
@@ -7836,7 +8407,7 @@ Inputs:
 ]
 ```
 
-Response: `25`
+Response: `27`
 
 ### StateReadState
 StateReadState returns the indicated actor's state.
@@ -8029,7 +8600,31 @@ Response:
             "tt": 60000000000
           }
         ],
-        "Subcalls": null
+        "Subcalls": null,
+        "Logs": [
+          "string value"
+        ],
+        "IpldOps": [
+          {
+            "Op": "Get",
+            "Cid": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Size": 42
+          }
+        ]
+      }
+    ],
+    "Logs": [
+      "string value"
+    ],
+    "IpldOps": [
+      {
+        "Op": "Get",
+        "Cid": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        "Size": 42
       }
     ]
   },
@@ -8167,9 +8762,6 @@ Response:
   "SealedCID": {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  "DealIDs": [
-    5432
-  ],
   "Activation": 10101,
   "Expiration": 10101,
   "DealWeight": "0",
@@ -8182,7 +8774,8 @@ Response:
   "SectorKeyCID": {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  "Flags": 0
+  "Flags": 0,
+  "DailyFee": "0"
 }
 ```
 
@@ -8644,14 +9237,142 @@ Response:
     {
       "WorkerID": 42,
       "Base": {
-        "Cids": null,
-        "Blocks": null,
-        "Height": 0
+        "Cids": [
+          {
+            "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+          }
+        ],
+        "Blocks": [
+          {
+            "Miner": "f01938223",
+            "Ticket": {
+              "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+            },
+            "ElectionProof": {
+              "WinCount": 1,
+              "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+            },
+            "BeaconEntries": [
+              {
+                "Round": 17133822,
+                "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+              },
+              {
+                "Round": 17133832,
+                "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+              }
+            ],
+            "WinPoStProof": [
+              {
+                "PoStProof": 3,
+                "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+              }
+            ],
+            "Parents": [
+              {
+                "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+              },
+              {
+                "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+              },
+              {
+                "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+              }
+            ],
+            "ParentWeight": "116013147118",
+            "Height": 4863283,
+            "ParentStateRoot": {
+              "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+            },
+            "ParentMessageReceipts": {
+              "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+            },
+            "Messages": {
+              "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+            },
+            "BLSAggregate": {
+              "Type": 2,
+              "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+            },
+            "Timestamp": 1744204890,
+            "BlockSig": {
+              "Type": 2,
+              "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+            },
+            "ForkSignaling": 0,
+            "ParentBaseFee": "20592036"
+          }
+        ],
+        "Height": 4863283
       },
       "Target": {
-        "Cids": null,
-        "Blocks": null,
-        "Height": 0
+        "Cids": [
+          {
+            "/": "bafy2bzacedo7hjsumaajt6sbor42qycvjyk6goqe4oi4o4ddsjxkdeqrqf42c"
+          }
+        ],
+        "Blocks": [
+          {
+            "Miner": "f01938223",
+            "Ticket": {
+              "VRFProof": "rIPyBy+F827Szc5oN/6ylCmpzxfAWr7aI5F4YJrN4pLSyknkcJI3ivsCo2KKjQVZFRnFyEus1maD5LdzQpnFRKMla4138qEuML+Ne/fsgOMrUEAeL34ceVwJd+Mt4Jrz"
+            },
+            "ElectionProof": {
+              "WinCount": 1,
+              "VRFProof": "sN51JqjZNf+xWxwoo+wlMH1bpXI9T3wUIrla6FpwTxU4jC1z+ab5NFU/B2ZdDITTE+u8qaiibtLkld5lhNcOEOUqwKNyJ4nwFo5vAhWqvOTNdOiZmxsKpWG0NZUoXb/+"
+            },
+            "BeaconEntries": [
+              {
+                "Round": 17133822,
+                "Data": "tH4q8euIaP9/QRJt8ALfkBvttSmQ/DOAt8+37wGGV5f8kkhzEFrHhskitNnPS70j"
+              },
+              {
+                "Round": 17133832,
+                "Data": "uQD5cEn8U69+sPjpccT8Bm0jVrnXLScf2jBkLJNHvAHLA6tPsZDREzpBIckpVvPy"
+              }
+            ],
+            "WinPoStProof": [
+              {
+                "PoStProof": 3,
+                "ProofBytes": "qOPLMhMui8qm/rE2y/UceyBDv5JvRCH5Fc5Ul+kuN190XDcMme5eKURUCmE2sN1HoQ2dMZX+xNZY351dbG93H/tUr6wuNhkvmemi2Xi62YvqU36/kJh+K2YBiW7h/4LXCUTP/6XAOONOPl+j9GqS7RQxruPLfIyehvzVC0C8dB8+SVWtAnRKRPUUOPJvyHKejlrCyzWXOz/I7JG2/qEGLD0xwazBVwML1vVvuE5NzXeOoQGlnB2PwSRb5Cn8FH8Q"
+              }
+            ],
+            "Parents": [
+              {
+                "/": "bafy2bzaceba2kdmysmi5ieugzvv5np7f2lobayzpvtk777du74n7jq6xhynda"
+              },
+              {
+                "/": "bafy2bzacecrye24tkqrvvddcf62gfi4z4o33z2tdedbpaalordozaxfrz2jyi"
+              },
+              {
+                "/": "bafy2bzaceab5mrohjvnp3mz7mo33ky7qqlmssrs7veqmjrgouafxyhnd5dy66"
+              }
+            ],
+            "ParentWeight": "116013147118",
+            "Height": 4863283,
+            "ParentStateRoot": {
+              "/": "bafy2bzaceajxzsvzuq3ddzxfrs2jlaxsooqmgdy5uxbqujnjy3y56iumzzy7u"
+            },
+            "ParentMessageReceipts": {
+              "/": "bafy2bzacecfcx2ykqucyv3gkyrcy3upwrvdraz3ktfg7phkqysefdwsggglac"
+            },
+            "Messages": {
+              "/": "bafy2bzacebzofmh6migvc4v6qsme6vuxlhi6pv2ocy4apyic3uihjqm7dum3u"
+            },
+            "BLSAggregate": {
+              "Type": 2,
+              "Data": "krFATGA0OBu/kFwtXsThVtKCkppnU7045uTURCeiOeJttxuXfx3wqJrLkCytnJFWFLVC+tiVWI4BxC3wqc9r6eAlNr9dEBx+3KwML/RFG/b5grmknLpGWn7g1EB/2T4y"
+            },
+            "Timestamp": 1744204890,
+            "BlockSig": {
+              "Type": 2,
+              "Data": "pWiUr+M8xxTxLED7GuU586gSfZCaHyLbLj0uS0HhKYRtHuyG47fIrfIT/04OCmQvEXBD8pFraWbMc3tnFrSsM1mIBJ5M38UPUfXDSspo+QGdouo2kll2X+VNKY3ajb1K"
+            },
+            "ForkSignaling": 0,
+            "ParentBaseFee": "20592036"
+          }
+        ],
+        "Height": 4863283
       },
       "Stage": 1,
       "Height": 10101,

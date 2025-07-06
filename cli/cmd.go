@@ -51,16 +51,18 @@ var ReqContext = cliutil.ReqContext
 
 var GetFullNodeAPI = cliutil.GetFullNodeAPI
 var GetFullNodeAPIV1 = cliutil.GetFullNodeAPIV1
-var GetGatewayAPI = cliutil.GetGatewayAPI
+var GetFullNodeAPIV2 = cliutil.GetFullNodeAPIV2
+var GetGatewayAPIV1 = cliutil.GetGatewayAPIV1
+var GetGatewayAPIV2 = cliutil.GetGatewayAPIV2
 
 var GetStorageMinerAPI = cliutil.GetStorageMinerAPI
 var GetWorkerAPI = cliutil.GetWorkerAPI
 
 var CommonCommands = []*cli.Command{
-	AuthCmd,
-	LogCmd,
-	WaitApiCmd,
-	FetchParamCmd,
+	WithCategory("developer", AuthCmd),
+	WithCategory("developer", LogCmd),
+	WithCategory("developer", WaitApiCmd),
+	WithCategory("developer", FetchParamCmd),
 	PprofCmd,
 	VersionCmd,
 }

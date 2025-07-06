@@ -1,16 +1,15 @@
 #####################################
-FROM golang:1.22.7-bullseye AS lotus-builder
+FROM golang:1.23.10-bullseye AS lotus-builder
 MAINTAINER Lotus Development Team
 
 RUN apt-get update && apt-get install -y ca-certificates build-essential clang ocl-icd-opencl-dev ocl-icd-libopencl1 jq libhwloc-dev
 
 ENV XDG_CACHE_HOME="/tmp"
 
-### taken from https://github.com/rust-lang/docker-rust/blob/master/1.63.0/buster/Dockerfile
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=1.63.0
+    RUST_VERSION=1.86.0
 
 RUN set -eux; \
     dpkgArch="$(dpkg --print-architecture)"; \
@@ -75,7 +74,7 @@ COPY scripts/docker-lotus-entrypoint.sh /
 
 ARG DOCKER_LOTUS_IMPORT_SNAPSHOT=https://forest-archive.chainsafe.dev/latest/mainnet/
 ENV DOCKER_LOTUS_IMPORT_SNAPSHOT ${DOCKER_LOTUS_IMPORT_SNAPSHOT}
-ENV FILECOIN_PARAMETER_CACHE /var/tmp/filecoin-proof-parameters
+ENV FIL_PROOFS_PARAMETER_CACHE /var/tmp/filecoin-proof-parameters
 ENV LOTUS_PATH /var/lib/lotus
 ENV DOCKER_LOTUS_IMPORT_WALLET ""
 
@@ -96,7 +95,7 @@ CMD ["-help"]
 #####################################
 FROM lotus-base AS lotus-all-in-one
 
-ENV FILECOIN_PARAMETER_CACHE /var/tmp/filecoin-proof-parameters
+ENV FIL_PROOFS_PARAMETER_CACHE /var/tmp/filecoin-proof-parameters
 ENV LOTUS_MINER_PATH /var/lib/lotus-miner
 ENV LOTUS_PATH /var/lib/lotus
 ENV LOTUS_WORKER_PATH /var/lib/lotus-worker

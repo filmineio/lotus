@@ -52,36 +52,42 @@ var UpgradeHyggeHeight = abi.ChainEpoch(-21)
 var UpgradeLightningHeight = abi.ChainEpoch(-22)
 var UpgradeThunderHeight = abi.ChainEpoch(-23)
 var UpgradeWatermelonHeight = abi.ChainEpoch(-24)
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeWatermelonFixHeight abi.ChainEpoch = -1
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeWatermelonFix2Height abi.ChainEpoch = -2
+
 var UpgradeDragonHeight = abi.ChainEpoch(-25)
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeCalibrationDragonFixHeight abi.ChainEpoch = -3
+
 var UpgradePhoenixHeight = abi.ChainEpoch(-26)
 var UpgradeWaffleHeight = abi.ChainEpoch(-27)
 var UpgradeTuktukHeight = abi.ChainEpoch(-28)
-
-const UpgradeTeepHeight = 50
 
 // FIP-0081: for the power actor state for pledge calculations.
 // UpgradeTuktukPowerRampDurationEpochs ends up in the power actor state after
 // Tuktuk migration. along with a RampStartEpoch matching the upgrade height.
 var UpgradeTuktukPowerRampDurationEpochs = uint64(builtin.EpochsInYear)
 
-// This fix upgrade only ran on calibrationnet
-const UpgradeWatermelonFixHeight = -1
+var UpgradeTeepHeight = abi.ChainEpoch(-29)
+
+var UpgradeTeepInitialFilReserved = InitialFilReserved // FIP-0100: no change for interop
+
+var UpgradeTockHeight = abi.ChainEpoch(-30)
 
 // This fix upgrade only ran on calibrationnet
-const UpgradeWatermelonFix2Height = -2
+const UpgradeTockFixHeight abi.ChainEpoch = -4
 
-// This fix upgrade only ran on calibrationnet
-const UpgradeCalibrationDragonFixHeight = -3
+const UpgradeXxHeight = 50
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandQuicknet,
 }
 
-var SupportedProofTypes = []abi.RegisteredSealProof{
-	abi.RegisteredSealProof_StackedDrg2KiBV1,
-	abi.RegisteredSealProof_StackedDrg8MiBV1,
-	abi.RegisteredSealProof_StackedDrg512MiBV1,
-}
 var ConsensusMinerMinPower = abi.NewStoragePower(2048)
 var PreCommitChallengeDelay = abi.ChainEpoch(10)
 
@@ -146,9 +152,5 @@ var WhitelistedBlock = cid.Undef
 
 const F3Enabled = true
 
-var F3ManifestServerID = MustParseID("12D3KooWQJ2rdVnG4okDUB6yHQhAjNutGNemcM7XzqC9Eo4z9Jce")
-
-// The initial F3 power table CID.
-var F3InitialPowerTableCID cid.Cid = cid.Undef
-
-const F3BootstrapEpoch abi.ChainEpoch = 1000
+//go:embed f3manifest_interop.json
+var F3ManifestBytes []byte

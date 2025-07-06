@@ -70,6 +70,9 @@ func Load(store adt.Store, act *types.Actor) (State, error) {
 		case actorstypes.Version16:
 			return load16(store, act.Head)
 
+		case actorstypes.Version17:
+			return load17(store, act.Head)
+
 		}
 	}
 
@@ -152,6 +155,9 @@ func MakeState(store adt.Store, av actorstypes.Version) (State, error) {
 	case actorstypes.Version16:
 		return make16(store)
 
+	case actorstypes.Version17:
+		return make17(store)
+
 	}
 	return nil, xerrors.Errorf("unknown actor version %d", av)
 }
@@ -178,6 +184,7 @@ type State interface {
 	NextID() (abi.DealID, error)
 	GetState() interface{}
 	GetAllocationIdForPendingDeal(dealId abi.DealID) (verifregtypes.AllocationId, error)
+	ProviderSectors() (ProviderSectors, error)
 }
 
 type BalanceTable interface {
@@ -267,6 +274,9 @@ func DecodePublishStorageDealsReturn(b []byte, nv network.Version) (PublishStora
 	case actorstypes.Version16:
 		return decodePublishStorageDealsReturn16(b)
 
+	case actorstypes.Version17:
+		return decodePublishStorageDealsReturn17(b)
+
 	}
 	return nil, xerrors.Errorf("unknown actor version %d", av)
 }
@@ -281,6 +291,15 @@ type DealState interface {
 	SlashEpoch() abi.ChainEpoch       // -1 if deal never slashed
 
 	Equals(other DealState) bool
+}
+
+type ProviderSectors interface {
+	Get(actorId abi.ActorID) (SectorDealIDs, bool, error)
+}
+
+type SectorDealIDs interface {
+	ForEach(cb func(abi.SectorNumber, []abi.DealID) error) error
+	Get(sectorNumber abi.SectorNumber) ([]abi.DealID, bool, error)
 }
 
 func DealStatesEqual(a, b DealState) bool {
@@ -399,5 +418,6 @@ func AllCodes() []cid.Cid {
 		(&state14{}).Code(),
 		(&state15{}).Code(),
 		(&state16{}).Code(),
+		(&state17{}).Code(),
 	}
 }

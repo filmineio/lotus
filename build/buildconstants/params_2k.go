@@ -103,7 +103,7 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 }
 
 var ConsensusMinerMinPower = abi.NewStoragePower(2048)
-var PreCommitChallengeDelay = abi.ChainEpoch(10)
+var PreCommitChallengeDelay = abi.ChainEpoch(1)
 
 func init() {
 	SetAddressNetwork(address.Testnet)
@@ -189,7 +189,7 @@ func init() {
 
 }
 
-const BlockDelaySecs = uint64(4)
+const BlockDelaySecs = uint64(14)
 
 const PropagationDelaySecs = uint64(1)
 

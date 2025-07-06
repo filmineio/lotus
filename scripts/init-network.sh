@@ -3,7 +3,7 @@
 set -xeo
 
 NUM_SECTORS=2
-SECTOR_SIZE=2KiB
+SECTOR_SIZE=512MiB
 
 
 sdt0111=$(mktemp -d)

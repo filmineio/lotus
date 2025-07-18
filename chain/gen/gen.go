@@ -121,7 +121,7 @@ var DefaultRemainderAccountActor = genesis.Actor{
 func NewGeneratorWithSectorsAndUpgradeSchedule(numSectors int, us stmgr.UpgradeSchedule) (*ChainGen, error) {
 	j := journal.NilJournal()
 	// TODO: we really shouldn't modify a global variable here.
-	policy.SetSupportedProofTypes(abi.RegisteredSealProof_StackedDrg2KiBV1)
+	policy.SetSupportedProofTypes(abi.RegisteredSealProof_StackedDrg512MiBV1)
 
 	mr := repo.NewMemory(nil)
 	lr, err := mr.Lock(repo.StorageMiner)

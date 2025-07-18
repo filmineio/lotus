@@ -1,0 +1,35 @@
+name: Build 512MiB Binaries
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+      - uses: ./.github/actions/install-system-dependencies
+      - uses: ./.github/actions/install-go
+      - uses: ./.github/actions/make-deps
+      - name: Build binaries
+        run: |
+          make lotus lotus-miner lotus-worker GOFLAGS="-tags=debug"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lotus-512MiB-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            lotus
+            lotus-miner
+            lotus-worker

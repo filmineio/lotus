@@ -102,7 +102,7 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandQuicknet,
 }
 
-var ConsensusMinerMinPower = abi.NewStoragePower(2048)
+var ConsensusMinerMinPower = abi.NewStoragePower(512 << 20)
 var PreCommitChallengeDelay = abi.ChainEpoch(10)
 
 func init() {

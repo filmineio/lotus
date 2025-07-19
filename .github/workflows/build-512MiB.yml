@@ -1,0 +1,49 @@
+name: Build 512MiB Binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-512MiB:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ./.github/actions/install-system-dependencies
+      - uses: ./.github/actions/install-go
+      - name: Build Lotus for 512MiB
+        run: |
+          FFI_BUILD_FROM_SOURCE=1 make deps
+          make lotus lotus-miner lotus-worker
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: lotus-512MiB-binaries
+          path: |
+            lotus
+            lotus-miner
+            lotus-worker
+      - name: Push binaries to release
+        if: github.ref == 'refs/heads/master'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="512MiB-${{ github.sha }}"
+          gh release create "$tag" -t "$tag" -n "Automated 512MiB build" || true
+          gh release upload "$tag" lotus lotus-miner lotus-worker --clobber

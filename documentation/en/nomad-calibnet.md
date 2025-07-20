@@ -16,8 +16,7 @@ The `lotus` binary will be installed to `/usr/local/bin`.
 ## Nomad job file
 
 The `nomad/lotus-calibnet.nomad` file starts a single Lotus daemon task using the `raw_exec` driver. Because `raw_exec` cannot mount volumes, the job expects the `/opt/lotus` repo and `/var/tmp/filecoin-proof-parameters` directory to already exist on the host.
-The task uses the `nomad-lotus-entrypoint.sh` helper script which downloads the latest Calibnet snapshot from `https://forest-archive.chainsafe.dev/latest/calibnet/` the first time the node starts.
-Copy this script to `/usr/local/bin/nomad-lotus-entrypoint.sh` on each node before running the job.
+The task runs a small inline script that imports a snapshot the first time the node starts. If the `FILECOIN_SNAPSHOT` environment variable is set, that path or URL is imported; otherwise the script fetches the latest Calibnet snapshot from `https://forest-archive.chainsafe.dev/latest/calibnet/`.
 The job runs in the `ict-staging` namespace on the `hetzner` datacenter and pins the task to `hetzner-staging-calibnet-node`.
 It exposes the API on port `1234` and opens the libp2p swarm on port `4012`.
 The task registers a health-checked service and restarts with exponential backoff if it crashes.

@@ -19,10 +19,23 @@ job "lotus-calibnet" {
       driver = "raw_exec"
 
       config {
-        command = "/usr/local/bin/nomad-lotus-entrypoint.sh"
+        command = "/bin/bash"
         args    = [
-          "--api",   "0.0.0.0:${NOMAD_PORT_api}",
-          "--libp2p", "/ip4/0.0.0.0/tcp/${NOMAD_PORT_p2p}"
+          "-ec",
+          <<-EOF
+            SNAPSHOT_URL="${FILECOIN_SNAPSHOT:-https://forest-archive.chainsafe.dev/latest/calibnet/}"
+            GATE="$LOTUS_PATH/date_initialized"
+            if [ ! -f "$GATE" ]; then
+              echo "Importing snapshot from $SNAPSHOT_URL"
+              if echo "$SNAPSHOT_URL" | grep -q '^https\?://'; then
+                curl -sL "$SNAPSHOT_URL" | /usr/local/bin/lotus daemon --import-snapshot - --halt-after-import
+              else
+                /usr/local/bin/lotus daemon --import-snapshot "$SNAPSHOT_URL" --halt-after-import
+              fi
+              date > "$GATE"
+            fi
+            exec /usr/local/bin/lotus daemon --api 0.0.0.0:${NOMAD_PORT_api} --libp2p /ip4/0.0.0.0/tcp/${NOMAD_PORT_p2p}
+          EOF
         ]
       }
 

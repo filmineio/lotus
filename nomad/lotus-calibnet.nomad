@@ -19,9 +19,8 @@ job "lotus-calibnet" {
       driver = "raw_exec"
 
       config {
-        command = "/usr/local/bin/lotus"
+        command = "/usr/local/bin/nomad-lotus-entrypoint.sh"
         args    = [
-          "daemon",
           "--api",   "0.0.0.0:${NOMAD_PORT_api}",
           "--libp2p", "/ip4/0.0.0.0/tcp/${NOMAD_PORT_p2p}"
         ]
@@ -32,6 +31,8 @@ job "lotus-calibnet" {
         FIL_PROOFS_PARAMETER_CACHE = "/var/tmp/filecoin-proof-parameters"
         LOTUS_NETWORK              = "calibration"
         LOTUS_FD_MAX               = "1048576"
+        # optional snapshot to import on first start
+        FILECOIN_SNAPSHOT          = ""
       }
       resources {
         # needs 30 vCPU on the node

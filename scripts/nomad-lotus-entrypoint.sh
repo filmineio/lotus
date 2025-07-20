@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-DAEMON_ARGS=("$@")
+SNAPSHOT_URL="https://forest-archive.chainsafe.dev/latest/calibnet/"
 
-if [[ -n "$FILECOIN_SNAPSHOT" ]]; then
-    GATE="$LOTUS_PATH/date_initialized"
-    if [[ ! -f "$GATE" ]]; then
-        echo "Importing snapshot from $FILECOIN_SNAPSHOT"
-        /usr/local/bin/lotus daemon --import-snapshot "$FILECOIN_SNAPSHOT" --halt-after-import
-        date > "$GATE"
-    fi
+DAEMON_ARGS=("$@")
+GATE="$LOTUS_PATH/date_initialized"
+
+if [[ ! -f "$GATE" ]]; then
+    echo "Fetching snapshot from $SNAPSHOT_URL"
+    curl -sL "$SNAPSHOT_URL" | /usr/local/bin/lotus daemon --import-snapshot - --halt-after-import
+    date > "$GATE"
 fi
 
 exec /usr/local/bin/lotus daemon "${DAEMON_ARGS[@]}"

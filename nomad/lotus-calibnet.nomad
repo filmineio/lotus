@@ -31,8 +31,6 @@ job "lotus-calibnet" {
         FIL_PROOFS_PARAMETER_CACHE = "/var/tmp/filecoin-proof-parameters"
         LOTUS_NETWORK              = "calibration"
         LOTUS_FD_MAX               = "1048576"
-        # optional snapshot to import on first start
-        FILECOIN_SNAPSHOT          = ""
       }
       resources {
         # needs 30 vCPU on the node

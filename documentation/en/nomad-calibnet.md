@@ -19,6 +19,7 @@ The `nomad/lotus-calibnet.nomad` file starts a single Lotus daemon task using th
 The task runs a small inline script that imports a snapshot the first time the node starts. If the `FILECOIN_SNAPSHOT` environment variable is set, that path or URL is imported; otherwise the script fetches the latest Calibnet snapshot from `https://forest-archive.chainsafe.dev/latest/calibnet/`.
 The job runs in the `ict-staging` namespace on the `hetzner` datacenter and pins the task to `hetzner-staging-calibnet-node`.
 It exposes the API on port `1234` and opens the libp2p swarm on port `4012`.
+The daemon reads the listening ports from `LOTUS_API_LISTENADDRESS` and `LOTUS_LIBP2P_LISTENADDRESSES`, which the Nomad job sets to `/ip4/0.0.0.0/tcp/${NOMAD_PORT_api}/http` and `/ip4/0.0.0.0/tcp/${NOMAD_PORT_p2p}` respectively.
 The task registers a health-checked service and restarts with exponential backoff if it crashes.
 The example configuration requests 30 CPU cores and 100&nbsp;GiB of RAM.
 

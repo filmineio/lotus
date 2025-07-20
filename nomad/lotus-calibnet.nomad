@@ -34,7 +34,7 @@ job "lotus-calibnet" {
               fi
               date > "$GATE"
             fi
-            exec /usr/local/bin/lotus daemon --api 0.0.0.0:${NOMAD_PORT_api} --libp2p /ip4/0.0.0.0/tcp/${NOMAD_PORT_p2p}
+            exec /usr/local/bin/lotus daemon
           EOF
         ]
       }
@@ -42,6 +42,8 @@ job "lotus-calibnet" {
       env {
         LOTUS_PATH                 = "/opt/lotus"
         FIL_PROOFS_PARAMETER_CACHE = "/var/tmp/filecoin-proof-parameters"
+        LOTUS_API_LISTENADDRESS      = "/ip4/0.0.0.0/tcp/${NOMAD_PORT_api}/http"
+        LOTUS_LIBP2P_LISTENADDRESSES = "/ip4/0.0.0.0/tcp/${NOMAD_PORT_p2p}"
         LOTUS_NETWORK              = "calibration"
         LOTUS_FD_MAX               = "1048576"
       }

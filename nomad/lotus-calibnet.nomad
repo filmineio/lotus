@@ -10,26 +10,9 @@ job "lotus-calibnet" {
   }
 
   group "lotus" {
-    count = 1
     network {
-      port "api" {
-        static = 1234
-      }
-      port "p2p" {
-        to = 4012
-      }
-    }
-
-    volume "lotus-data" {
-      type      = "host"
-      read_only = false
-      source    = "lotus-data"
-    }
-
-    volume "proof-params" {
-      type      = "host"
-      read_only = false
-      source    = "proof-params"
+      port "api" { static = 1234 }
+      port "p2p" { to = 4012 }
     }
 
     task "daemon" {
@@ -50,22 +33,10 @@ job "lotus-calibnet" {
         LOTUS_NETWORK              = "calibration"
         LOTUS_FD_MAX               = "1048576"
       }
-
-      volume_mount {
-        volume      = "lotus-data"
-        destination = "/opt/lotus"
-        read_only   = false
-      }
-
-      volume_mount {
-        volume      = "proof-params"
-        destination = "/var/tmp/filecoin-proof-parameters"
-        read_only   = false
-      }
-
       resources {
-        # Allocate 30 CPU cores and 100 GiB of RAM
+        # needs 30 vCPU on the node
         cpu    = 30000
+        # 100 GiB
         memory = 102400
       }
 
